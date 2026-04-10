@@ -57,10 +57,10 @@ struct ShellProvider: AgentProviding, Sendable {
 
         // Read stdout BEFORE checking exit code so diagnostic output is
         // not lost when the process fails (H13).
-        let output = readFileContents(at: stdoutPath)
+        let output = FileReader.readContents(at: stdoutPath)
 
         guard result.exitCode == 0 else {
-            let stderr = readFileContents(at: stderrPath)
+            let stderr = FileReader.readContents(at: stderrPath)
             throw ProviderError.processFailure(
                 command: prompt,
                 exitCode: result.exitCode,
@@ -86,12 +86,4 @@ struct ShellProvider: AgentProviding, Sendable {
         return TaskOutput(output: "", exitStatus: 0)
     }
 
-    private func readFileContents(at path: String) -> String {
-        guard let data = FileManager.default.contents(atPath: path),
-              let text = String(data: data, encoding: .utf8)
-        else {
-            return ""
-        }
-        return text.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
 }

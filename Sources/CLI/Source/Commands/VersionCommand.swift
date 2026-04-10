@@ -16,6 +16,12 @@ struct VersionCommand: AsyncParsableCommand {
         #else
         print("Swift 5.x")
         #endif
-        print("Platform: macOS (arm64/x86_64)")
+        #if arch(arm64)
+        print("Platform: macOS (arm64)")
+        #elseif arch(x86_64)
+        print("Platform: macOS (x86_64)")
+        #else
+        print("Platform: macOS")
+        #endif
     }
 }

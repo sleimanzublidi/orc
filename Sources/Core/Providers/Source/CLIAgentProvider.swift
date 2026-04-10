@@ -57,10 +57,10 @@ struct CLIAgentProvider: AgentProviding, Sendable {
             stderrPath: stderrPath
         )
 
-        let output = readFileContents(at: stdoutPath)
+        let output = FileReader.readContents(at: stdoutPath)
 
         guard result.exitCode == 0 else {
-            let stderr = readFileContents(at: stderrPath)
+            let stderr = FileReader.readContents(at: stderrPath)
             throw ProviderError.processFailure(
                 command: command,
                 exitCode: result.exitCode,
@@ -93,12 +93,4 @@ struct CLIAgentProvider: AgentProviding, Sendable {
         return TaskOutput(output: "", exitStatus: 0)
     }
 
-    private func readFileContents(at path: String) -> String {
-        guard let data = FileManager.default.contents(atPath: path),
-              let text = String(data: data, encoding: .utf8)
-        else {
-            return ""
-        }
-        return text.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
 }
