@@ -32,9 +32,13 @@ struct CLIAgentProvider: AgentProviding, Sendable {
     }
 
     func execute(prompt: String, context: TaskContext, timeout: Int? = nil) async throws -> TaskOutput {
-        // Shell-escape the prompt: escape embedded single quotes, then wrap the
-        // entire value in single quotes so shell metacharacters (;, |, $(), etc.)
-        // are inert regardless of how the template references {{prompt}}.
+        // NOTE: CLIAgentProvider intentionally uses shell-string construction (not
+        // direct execution) because the command template is user-defined and may
+        // require shell features (pipes, redirects, variable expansion, etc.).
+        // The prompt is escaped and single-quoted to prevent injection, which is
+        // the correct mitigation for this use case. Other providers (ClaudeCodeProvider,
+        // ShellProvider, TmuxSession) use direct execution where the executable and
+        // argument structure are known at compile time.
         let escapedPrompt = prompt.replacingOccurrences(of: "'", with: "'\\''")
         let command = commandTemplate.replacingOccurrences(of: "{{prompt}}", with: "'\(escapedPrompt)'")
 
