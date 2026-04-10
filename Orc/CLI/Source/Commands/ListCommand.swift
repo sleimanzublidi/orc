@@ -12,10 +12,13 @@ struct ListCommand: AsyncParsableCommand {
     var status: String?
 
     func run() async throws {
-        do {
-            let basePath = try OrcDirectory.require()
-            let engine = try await WorkflowEngine(basePath: basePath)
+        let basePath = try OrcDirectory.require()
+        let engine = try await WorkflowEngine(basePath: basePath)
+        try await execute(engine: engine)
+    }
 
+    func execute(engine: some OrcEngineProviding) async throws {
+        do {
             // Parse status filter if provided.
             let statusFilter: RunStatus?
             if let statusStr = status {

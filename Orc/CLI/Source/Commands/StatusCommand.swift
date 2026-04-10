@@ -12,10 +12,13 @@ struct StatusCommand: AsyncParsableCommand {
     var runID: String
 
     func run() async throws {
-        do {
-            let basePath = try OrcDirectory.require()
-            let engine = try await WorkflowEngine(basePath: basePath)
+        let basePath = try OrcDirectory.require()
+        let engine = try await WorkflowEngine(basePath: basePath)
+        try await execute(engine: engine)
+    }
 
+    func execute(engine: some OrcEngineProviding) async throws {
+        do {
             guard let run = try await engine.getStatus(runID: runID) else {
                 Format.printError("Run '\(runID)' not found.")
                 throw ExitCode.failure
@@ -31,12 +34,12 @@ struct StatusCommand: AsyncParsableCommand {
             }
 
             // Show node executions.
-            let executions = try await engine.getNodeExecutions(runID: runID)
+            let executions = try await engine.getNodeExecutions(runID: runID, nodeID: nil)
             if !executions.isEmpty {
                 print("")
                 print("Nodes:")
                 let headers = ["NODE", "STATUS", "ATTEMPT", "ITERATION", "STARTED", "COMPLETED"]
-                let rows = executions.map { exec in
+                let rows: [[String]] = executions.map { exec in
                     [
                         exec.nodeID,
                         exec.status.rawValue,
@@ -50,7 +53,7 @@ struct StatusCommand: AsyncParsableCommand {
 
                 // Show hint for awaiting-input nodes.
                 // Session-interactive nodes use `orc attach`; prompt nodes use `orc respond`.
-                let awaitingNodes = executions.filter { $0.status == .awaitingInput }
+                let awaitingNodes = executions.filter { $0.status == NodeStatus.awaitingInput }
                 if !awaitingNodes.isEmpty {
                     print("")
                     for node in awaitingNodes {

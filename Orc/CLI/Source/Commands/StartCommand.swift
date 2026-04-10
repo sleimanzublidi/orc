@@ -18,10 +18,13 @@ struct StartCommand: AsyncParsableCommand {
     var maxParallelNodes: Int?
 
     func run() async throws {
-        do {
-            let basePath = try OrcDirectory.require()
-            let engine = try await WorkflowEngine(basePath: basePath)
+        let basePath = try OrcDirectory.require()
+        let engine = try await WorkflowEngine(basePath: basePath)
+        try await execute(engine: engine)
+    }
 
+    func execute(engine: some OrcEngineProviding) async throws {
+        do {
             // Parse key=value input pairs.
             let inputs = try Self.parseInputPairs(input)
 

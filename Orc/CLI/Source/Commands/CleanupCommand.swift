@@ -11,10 +11,13 @@ struct CleanupCommand: AsyncParsableCommand {
     var runID: String
 
     func run() async throws {
-        do {
-            let basePath = try OrcDirectory.require()
-            let engine = try await WorkflowEngine(basePath: basePath)
+        let basePath = try OrcDirectory.require()
+        let engine = try await WorkflowEngine(basePath: basePath)
+        try await execute(engine: engine)
+    }
 
+    func execute(engine: some OrcEngineProviding) async throws {
+        do {
             try await engine.cleanupWorkspace(runID: runID)
 
             print("Workspace for run '\(runID)' removed.")

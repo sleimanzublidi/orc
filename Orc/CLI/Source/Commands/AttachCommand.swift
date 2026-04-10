@@ -15,11 +15,27 @@ struct AttachCommand: AsyncParsableCommand {
     var nodeID: String
 
     func run() async throws {
-        do {
-            // Verify we are inside an Orc project.
-            let basePath = try OrcDirectory.require()
-            let engine = try await WorkflowEngine(basePath: basePath)
+        let basePath = try OrcDirectory.require()
+        let engine = try await WorkflowEngine(basePath: basePath)
+        let sessionName = try await execute(engine: engine)
 
+        // Replace the current process with tmux attach-session.
+        // This is intentional: execvp does not return on success.
+        // Kept in run() because execvp replaces the process and cannot
+        // be meaningfully unit-tested.
+        let args = ["tmux", "attach-session", "-t", sessionName]
+        let cArgs = args.map { strdup($0) } + [nil]
+        defer { cArgs.forEach { free($0) } }
+
+        execvp("tmux", cArgs)
+
+        // If execvp returns, it failed.
+        Format.printError("Failed to attach to tmux session '\(sessionName)'. Is tmux installed?")
+        throw ExitCode.failure
+    }
+
+    func execute(engine: some OrcEngineProviding) async throws -> String {
+        do {
             // Verify the node execution exists and is in awaitingInput state.
             let executions = try await engine.getNodeExecutions(runID: runID, nodeID: nodeID)
             guard let latest = executions.last else {
@@ -43,17 +59,7 @@ struct AttachCommand: AsyncParsableCommand {
                 throw ExitCode.failure
             }
 
-            // Replace the current process with tmux attach-session.
-            // This is intentional: execvp does not return on success.
-            let args = ["tmux", "attach-session", "-t", sessionName]
-            let cArgs = args.map { strdup($0) } + [nil]
-            defer { cArgs.forEach { free($0) } }
-
-            execvp("tmux", cArgs)
-
-            // If execvp returns, it failed.
-            Format.printError("Failed to attach to tmux session '\(sessionName)'. Is tmux installed?")
-            throw ExitCode.failure
+            return sessionName
         } catch let error as ExitCode {
             throw error
         } catch {
