@@ -249,7 +249,7 @@ public actor WorkflowEngine {
         let pendingRun = Run(
             id: "",
             workflowName: workflow.name,
-            workflowFile: workflowFile,
+            workflowFile: canonicalPath,
             status: .running,
             workspacePath: "",
             inputs: inputs,

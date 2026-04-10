@@ -36,17 +36,12 @@ struct AttachCommand: AsyncParsableCommand {
 
             // Verify this is a session-interactive node (has a tmux session).
             // Prompt-interactive nodes should use `orc respond` instead.
-            guard latest.tmuxSession != nil else {
+            guard let sessionName = latest.tmuxSession else {
                 Format.printError(
                     "Node '\(nodeID)' is a prompt-interactive node. Use 'orc respond \(runID) \(nodeID) <response>' instead."
                 )
                 throw ExitCode.failure
             }
-
-            // Read the tmux session name from the persisted NodeExecution record
-            // rather than recomputing it, so the name is always consistent with
-            // what the engine stored.
-            let sessionName = latest.tmuxSession!
 
             // Replace the current process with tmux attach-session.
             // This is intentional: execvp does not return on success.
