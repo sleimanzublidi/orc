@@ -165,6 +165,46 @@ struct WorkflowEngineTests {
 
     // MARK: - Respond
 
+    // MARK: - workflowAlreadyRunning Guard
+
+    @Test("Start throws workflowAlreadyRunning when a run with the same file is in-flight")
+    func startThrowsWorkflowAlreadyRunning() async throws {
+        let store = FakeWorkflowStore()
+
+        // Use an absolute path so canonicalization is a no-op.
+        let workflowFile = "/tmp/already-running.yml"
+
+        // Seed the store with an existing run that has status .running for the same file.
+        let existingRun = Run(
+            id: "existing-run",
+            workflowName: "test",
+            workflowFile: workflowFile,
+            status: .running,
+            workspacePath: "/tmp/workspace"
+        )
+        _ = try await store.createRun(existingRun)
+
+        // Configure the parser to return a valid workflow for the same file.
+        let workflow = Workflow(
+            name: "test",
+            nodes: [
+                Models.Node(id: "A", agent: "fake", prompt: "do A")
+            ]
+        )
+        let parser = FakeWorkflowParser(workflow: workflow)
+
+        let (engine, _) = makeEngine(
+            store: store, parser: parser
+        )
+
+        // Attempting to start the same workflow file should throw workflowAlreadyRunning.
+        await #expect(throws: EngineError.workflowAlreadyRunning(id: "existing-run")) {
+            _ = try await engine.start(workflowFile: workflowFile, inputs: [:])
+        }
+    }
+
+    // MARK: - Respond
+
     @Test("Respond completes node and resumes workflow so downstream nodes execute")
     func respondToNode() async throws {
         let store = FakeWorkflowStore()
