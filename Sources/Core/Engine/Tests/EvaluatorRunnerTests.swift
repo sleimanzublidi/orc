@@ -547,9 +547,14 @@ struct EvaluatorRunnerTests {
         )
 
         #expect(result == true)
+        // After migrating to direct execution, the command is "orc" and the
+        // subcommand/flags are in the arguments array.
         #expect(fakeProcess.executedCommands.count == 1)
-        #expect(fakeProcess.executedCommands[0].contains("orc start"))
-        #expect(fakeProcess.executedCommands[0].contains("check.yml"))
+        #expect(fakeProcess.executedCommands[0] == "orc")
+        let args = fakeProcess.executedArguments[0]
+        #expect(args.contains("start"))
+        #expect(args.contains("check.yml"))
+        #expect(fakeProcess.executedExecutablePaths[0] != nil)
     }
 
     @Test("Workflow evaluator returns false when child workflow outputs 'false'")
@@ -621,10 +626,13 @@ struct EvaluatorRunnerTests {
             context: makeContext()
         )
 
-        // Verify the command includes --input last_output= with the value.
+        // Verify the arguments include --input last_output= with the value.
         #expect(fakeProcess.executedCommands.count == 1)
-        #expect(fakeProcess.executedCommands[0].contains("--input last_output="))
-        #expect(fakeProcess.executedCommands[0].contains("build succeeded"))
+        #expect(fakeProcess.executedCommands[0] == "orc")
+        let args = fakeProcess.executedArguments[0]
+        #expect(args.contains("start"))
+        #expect(args.contains("--input"))
+        #expect(args.contains("last_output=build succeeded"))
     }
 
     @Test("Workflow evaluator throws evaluatorFailed when child process exits non-zero")
@@ -718,8 +726,11 @@ struct EvaluatorRunnerTests {
         )
 
         #expect(fakeProcess.executedCommands.count == 1)
+        #expect(fakeProcess.executedCommands[0] == "orc")
         // The SubstitutingTemplateResolver replaces {{workspace}} with the workspace path.
-        #expect(fakeProcess.executedCommands[0].contains("/tmp/test/workflows/check.yml"))
+        // The resolved path appears in the arguments array, not the command string.
+        let args = fakeProcess.executedArguments[0]
+        #expect(args.contains("/tmp/test/workflows/check.yml"))
     }
 
     // MARK: - Built-in Evaluator Priority

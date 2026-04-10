@@ -78,6 +78,10 @@ public protocol WorkflowParsing: Sendable {
 /// Use the shell-based mode only for user-supplied shell commands that need
 /// shell features (pipes, redirects, variable expansion, etc.).
 public protocol ProcessRunning: Sendable {
+    /// - Parameters:
+    ///   - command: In shell mode (executablePath nil), the shell command string.
+    ///     In direct mode (executablePath non-nil), used only for error messages/diagnostics.
+    ///   - arguments: In shell mode, unused. In direct mode, passed as process.arguments.
     func run(
         command: String,
         arguments: [String],
