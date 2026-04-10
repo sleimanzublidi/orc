@@ -351,7 +351,10 @@ struct EvaluatorRunner: EvaluatorProviding, Sendable {
 
         // Run the child workflow via the Orc CLI, passing last_output as an input.
         // The command is: orc start <workflow-path> --input last_output=<value>
-        let command = "orc start \(resolvedPath) --input last_output=\(shellEscape(lastOutput))"
+        let command = "orc start \(shellEscape(resolvedPath)) --input last_output=\(shellEscape(lastOutput))"
+
+        let stderrFile = NSTemporaryDirectory() + "orc-eval-\(definition.name)-\(UUID().uuidString).err"
+        defer { try? FileManager.default.removeItem(atPath: stderrFile) }
 
         let result = try await processRunner.run(
             command: command,
@@ -360,13 +363,13 @@ struct EvaluatorRunner: EvaluatorProviding, Sendable {
             environment: nil,
             timeout: nil,
             stdoutPath: stdoutFile,
-            stderrPath: nil
+            stderrPath: stderrFile
         )
 
         // Non-zero exit = evaluator failure (not "false"). Per spec, evaluator
         // failures are treated as node failures to prevent infinite loops.
         guard result.exitCode == 0 else {
-            let stderr = (try? String(contentsOfFile: result.stderrPath, encoding: .utf8)) ?? ""
+            let stderr = (try? String(contentsOfFile: stderrFile, encoding: .utf8)) ?? ""
             throw EngineError.evaluatorFailed(
                 name: definition.name,
                 detail: "Child workflow '\(resolvedPath)' exited with code \(result.exitCode). \(stderr)"

@@ -83,11 +83,8 @@ struct ExecutionPlanner: Sendable {
             // Cycle detected — gather the remaining nodes for the error.
             let remaining = nodeIDs.subtracting(sorted)
             // Report first remaining node alphabetically for determinism.
-            let firstNode = remaining.sorted().first ?? "unknown"
-            throw EngineError.dependencyFailed(
-                nodeID: firstNode,
-                upstream: "cycle detected in dependency graph"
-            )
+            let cycle = remaining.sorted()
+            throw EngineError.cyclicDependency(nodes: cycle)
         }
 
         return sorted

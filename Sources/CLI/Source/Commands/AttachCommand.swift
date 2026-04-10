@@ -43,8 +43,10 @@ struct AttachCommand: AsyncParsableCommand {
                 throw ExitCode.failure
             }
 
-            // Build the tmux session name used by the engine.
-            let sessionName = "orc-\(runID)-\(nodeID)"
+            // Read the tmux session name from the persisted NodeExecution record
+            // rather than recomputing it, so the name is always consistent with
+            // what the engine stored.
+            let sessionName = latest.tmuxSession!
 
             // Replace the current process with tmux attach-session.
             // This is intentional: execvp does not return on success.

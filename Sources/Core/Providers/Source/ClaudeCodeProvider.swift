@@ -49,7 +49,7 @@ struct ClaudeCodeProvider: AgentProviding, Sendable {
         )
 
         guard result.exitCode == 0 else {
-            let stderr = readFileContents(at: stderrPath)
+            let stderr = FileReader.readContents(at: stderrPath)
             throw ProviderError.processFailure(
                 command: "claude -p",
                 exitCode: result.exitCode,
@@ -57,7 +57,7 @@ struct ClaudeCodeProvider: AgentProviding, Sendable {
             )
         }
 
-        let rawOutput = readFileContents(at: stdoutPath)
+        let rawOutput = FileReader.readContents(at: stdoutPath)
         let text = try parseClaudeJSON(rawOutput)
 
         return TaskOutput(output: text, exitStatus: Int(result.exitCode))
@@ -139,12 +139,4 @@ struct ClaudeCodeProvider: AgentProviding, Sendable {
         )
     }
 
-    private func readFileContents(at path: String) -> String {
-        guard let data = FileManager.default.contents(atPath: path),
-              let text = String(data: data, encoding: .utf8)
-        else {
-            return ""
-        }
-        return text.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
 }

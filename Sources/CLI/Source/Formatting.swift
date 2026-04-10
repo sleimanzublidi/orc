@@ -14,11 +14,15 @@ enum Format {
 
     // MARK: - Date Formatting
 
-    /// Formats a Date as an ISO 8601 string.
-    static func date(_ date: Date) -> String {
+    private static nonisolated(unsafe) let iso8601Formatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
-        return formatter.string(from: date)
+        return formatter
+    }()
+
+    /// Formats a Date as an ISO 8601 string.
+    static func date(_ date: Date) -> String {
+        iso8601Formatter.string(from: date)
     }
 
     // MARK: - Duration Formatting

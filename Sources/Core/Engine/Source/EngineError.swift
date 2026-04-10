@@ -36,6 +36,9 @@ public enum EngineError: Error, Sendable, Equatable {
     /// A node's upstream dependency failed, preventing execution.
     case dependencyFailed(nodeID: String, upstream: String)
 
+    /// The workflow DAG contains a cycle, preventing topological ordering.
+    case cyclicDependency(nodes: [String])
+
     /// A nested (child) workflow referenced by a node failed during execution.
     case nestedWorkflowFailed(nodeID: String, workflowFile: String, detail: String)
 
@@ -66,6 +69,8 @@ extension EngineError: CustomStringConvertible {
             "Node '\(nodeID)' reached max iterations (\(count))."
         case .dependencyFailed(let nodeID, let upstream):
             "Node '\(nodeID)' skipped: dependency '\(upstream)' failed."
+        case .cyclicDependency(let nodes):
+            "Cyclic dependency detected among nodes: \(nodes.joined(separator: ", "))"
         case .nestedWorkflowFailed(let nodeID, let workflowFile, let detail):
             "Node '\(nodeID)' nested workflow '\(workflowFile)' failed: \(detail)"
         case .projectAlreadyExists(let path):
