@@ -15,6 +15,13 @@ final class FakeProcessRunner: ProcessRunning, @unchecked Sendable {
     /// Records all environment dictionaries passed to run calls, in order.
     private(set) var executedEnvironments: [[String: String]?] = []
 
+    /// Records all executable paths passed to run calls, in order.
+    /// Non-nil entries indicate direct execution (no shell wrapping).
+    private(set) var executedExecutablePaths: [String?] = []
+
+    /// Records all argument arrays passed to run calls, in order.
+    private(set) var executedArguments: [[String]] = []
+
     /// The last timeout value passed to `run(...)`. Useful for verifying
     /// that callers forward timeout values to the process runner.
     private(set) var capturedTimeout: Int?
@@ -40,10 +47,13 @@ final class FakeProcessRunner: ProcessRunning, @unchecked Sendable {
         environment: [String: String]?,
         timeout: Int?,
         stdoutPath: String?,
-        stderrPath: String?
+        stderrPath: String?,
+        executablePath: String? = nil
     ) async throws -> ProcessResult {
         executedCommands.append(command)
         executedEnvironments.append(environment)
+        executedExecutablePaths.append(executablePath)
+        executedArguments.append(arguments)
         capturedTimeout = timeout
         return handler(command, arguments, environment, stdoutPath, stderrPath)
     }

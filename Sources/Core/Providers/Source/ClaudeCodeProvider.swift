@@ -35,17 +35,18 @@ struct ClaudeCodeProvider: AgentProviding, Sendable {
         // responsible for persisting log paths and cleaning up afterward,
         // so that stderr content remains available for log persistence.
 
-        let escapedPrompt = prompt.replacingOccurrences(of: "'", with: "'\\''")
-        let command = "\(claudePath) -p '\(escapedPrompt)' --output-format json"
-
+        // Use direct execution to avoid shell-string injection. The prompt
+        // is passed as a discrete argument, so shell metacharacters in user
+        // prompts (;, |, $(), etc.) are inert.
         let result = try await processRunner.run(
-            command: command,
-            arguments: [],
+            command: claudePath,
+            arguments: ["-p", prompt, "--output-format", "json"],
             workingDirectory: context.workspacePath,
             environment: nil,
             timeout: timeout,
             stdoutPath: stdoutPath,
-            stderrPath: stderrPath
+            stderrPath: stderrPath,
+            executablePath: claudePath
         )
 
         guard result.exitCode == 0 else {

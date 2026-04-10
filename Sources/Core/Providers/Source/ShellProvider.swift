@@ -34,25 +34,18 @@ struct ShellProvider: AgentProviding, Sendable {
         // responsible for persisting log paths and cleaning up afterward,
         // so that stderr content remains available for log persistence.
 
-        // Use the configured shell to run the command. ProcessRunner executes
-        // via /bin/zsh by default, so we wrap in the configured shell to
-        // honor the user's default_shell setting.
-        let command: String
-        if defaultShell == "/bin/zsh" {
-            command = prompt
-        } else {
-            let escaped = prompt.replacingOccurrences(of: "'", with: "'\\''")
-            command = "\(defaultShell) -c '\(escaped)'"
-        }
-
+        // Use direct execution with the configured shell to avoid shell-string
+        // injection in the non-zsh path. The prompt is passed as a discrete
+        // argument to the shell's -c flag, so metacharacters are inert.
         let result = try await processRunner.run(
-            command: command,
-            arguments: [],
+            command: prompt,
+            arguments: ["-c", prompt],
             workingDirectory: context.workspacePath,
             environment: nil,
             timeout: timeout,
             stdoutPath: stdoutPath,
-            stderrPath: stderrPath
+            stderrPath: stderrPath,
+            executablePath: defaultShell
         )
 
         // Read stdout BEFORE checking exit code so diagnostic output is

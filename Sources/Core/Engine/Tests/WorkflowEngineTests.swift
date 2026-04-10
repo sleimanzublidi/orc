@@ -201,6 +201,42 @@ struct WorkflowEngineTests {
         }
     }
 
+    // MARK: - Path Canonicalization
+
+    @Test("Start stores canonical path in run record even when given a relative path")
+    func startStoresCanonicalPath() async throws {
+        let fakeProvider = FakeAgentProvider(name: "fake")
+        fakeProvider.defaultOutput = "done"
+
+        let workflow = Workflow(
+            name: "canon-test",
+            nodes: [
+                Models.Node(id: "A", agent: "fake", prompt: "do A")
+            ]
+        )
+        let parser = FakeWorkflowParser(workflow: workflow)
+
+        let (engine, store) = makeEngine(
+            parser: parser, fakeProvider: fakeProvider
+        )
+
+        let run = try await engine.start(
+            workflowFile: "./some-relative-path.yml",
+            inputs: [:]
+        )
+
+        // The stored run should have a canonical (absolute) path, not the
+        // relative "./some-relative-path.yml" that was passed in.
+        let storedRun = try await store.getRun(id: run.id)
+        #expect(storedRun != nil)
+        #expect(!storedRun!.workflowFile.hasPrefix("./"),
+                "Run record should store canonical path, not the relative input path")
+        #expect(storedRun!.workflowFile.hasPrefix("/"),
+                "Canonical path should be absolute (start with /)")
+        #expect(storedRun!.workflowFile.hasSuffix("some-relative-path.yml"),
+                "Canonical path should preserve the file name")
+    }
+
     // MARK: - Respond
 
     @Test("Respond completes node and resumes workflow so downstream nodes execute")

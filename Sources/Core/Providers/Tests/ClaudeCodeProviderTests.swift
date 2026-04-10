@@ -22,12 +22,9 @@ private final class CaptureBox<T>: @unchecked Sendable {
 struct ClaudeCodeProviderTests {
     let context = TaskContext(workspacePath: "/tmp/orc-test")
 
-    @Test("Passes correct CLI arguments to process runner")
-    func correctCLIArguments() async throws {
-        let captured = CaptureBox<String>()
-
-        let runner = FakeProcessRunner { command, _, stdoutPath, _ in
-            captured.set(command)
+    @Test("Uses direct execution with discrete arguments to prevent shell injection")
+    func directExecutionWithDiscreteArguments() async throws {
+        let runner = FakeProcessRunner { _, _, stdoutPath, _ in
             // Write valid JSON to stdout so parsing succeeds.
             let json = """
                 [{"type":"result","result":"test output"}]
@@ -53,11 +50,11 @@ struct ClaudeCodeProviderTests {
 
         _ = try await provider.execute(prompt: "Hello world", context: context)
 
-        let capturedCommand = captured.value
-        #expect(capturedCommand?.contains("claude") == true)
-        #expect(capturedCommand?.contains("-p") == true)
-        #expect(capturedCommand?.contains("--output-format json") == true)
-        #expect(capturedCommand?.contains("Hello world") == true)
+        // Verify direct execution path is used (no shell wrapping).
+        #expect(runner.capturedExecutablePath == "/usr/local/bin/claude")
+        // Verify arguments are passed as discrete values, not interpolated
+        // into a shell string. This prevents shell-string injection.
+        #expect(runner.capturedArguments == ["-p", "Hello world", "--output-format", "json"])
     }
 
     @Test("Parses valid JSON array with result element")
@@ -135,13 +132,9 @@ struct ClaudeCodeProviderTests {
         }
     }
 
-    @Test("Shell-escapes single quotes in prompt to prevent command injection")
-    func shellEscapesSingleQuotes() async throws {
-        let captured = CaptureBox<String>()
-
-        let runner = FakeProcessRunner { command, _, stdoutPath, _ in
-            captured.set(command)
-            // Write valid JSON so parsing succeeds.
+    @Test("Passes shell metacharacters verbatim via direct execution (no injection)")
+    func shellMetacharactersAreInert() async throws {
+        let runner = FakeProcessRunner { _, _, stdoutPath, _ in
             let json = """
                 [{"type":"result","result":"ok"}]
                 """
@@ -164,13 +157,15 @@ struct ClaudeCodeProviderTests {
             tmuxProvider: FakeTmuxProvider()
         )
 
-        // A prompt containing a single quote.
-        _ = try await provider.execute(prompt: "it's a test", context: context)
+        // A prompt containing shell metacharacters that would be dangerous
+        // if interpreted by a shell (single quotes, semicolons, pipes, $()).
+        let dangerousPrompt = "it's dangerous; rm -rf / | $(echo pwned)"
+        _ = try await provider.execute(prompt: dangerousPrompt, context: context)
 
-        // The provider escapes ' as '\'' inside the single-quoted prompt:
-        // /usr/local/bin/claude -p 'it'\''s a test' --output-format json
-        let capturedCommand = captured.value
-        #expect(capturedCommand == "/usr/local/bin/claude -p 'it'\\''s a test' --output-format json")
+        // With direct execution the prompt is passed as a discrete argument,
+        // so no escaping is needed — the raw string reaches the binary verbatim.
+        #expect(runner.capturedExecutablePath == "/usr/local/bin/claude")
+        #expect(runner.capturedArguments == ["-p", dangerousPrompt, "--output-format", "json"])
     }
 
     @Test("Interactive mode creates tmux session")

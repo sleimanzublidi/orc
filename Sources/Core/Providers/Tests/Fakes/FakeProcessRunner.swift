@@ -16,6 +16,13 @@ final class FakeProcessRunner: ProcessRunning, @unchecked Sendable {
     /// that providers forward timeout values to the process runner.
     private(set) var capturedTimeout: Int?
 
+    /// The last `executablePath` value passed to `run(...)`. Non-nil indicates
+    /// direct execution (no shell wrapping).
+    private(set) var capturedExecutablePath: String?
+
+    /// The last `arguments` array passed to `run(...)`.
+    private(set) var capturedArguments: [String]?
+
     init(
         handler: @escaping @Sendable (String, [String], String?, String?) -> ProcessResult
     ) {
@@ -53,9 +60,12 @@ final class FakeProcessRunner: ProcessRunning, @unchecked Sendable {
         environment: [String: String]?,
         timeout: Int?,
         stdoutPath: String?,
-        stderrPath: String?
+        stderrPath: String?,
+        executablePath: String? = nil
     ) async throws -> ProcessResult {
         capturedTimeout = timeout
+        capturedExecutablePath = executablePath
+        capturedArguments = arguments
         return handler(command, arguments, stdoutPath, stderrPath)
     }
 }
