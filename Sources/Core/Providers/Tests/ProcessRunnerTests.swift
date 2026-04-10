@@ -114,4 +114,60 @@ struct ProcessRunnerTests {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         #expect(output == "test_value_123")
     }
+
+    // MARK: - Direct Execution (executablePath)
+
+    @Test("Direct execution bypasses shell and uses discrete arguments")
+    func directExecution() async throws {
+        let stdoutPath = NSTemporaryDirectory() + "orc-test-stdout-\(UUID().uuidString).txt"
+        defer { try? FileManager.default.removeItem(atPath: stdoutPath) }
+
+        // Use /bin/echo directly with arguments. This verifies the
+        // executablePath mode passes arguments as discrete argv entries.
+        let result = try await runner.run(
+            command: "/bin/echo",
+            arguments: ["hello", "world"],
+            workingDirectory: nil,
+            environment: nil,
+            timeout: nil,
+            stdoutPath: stdoutPath,
+            stderrPath: nil,
+            executablePath: "/bin/echo"
+        )
+
+        #expect(result.exitCode == 0)
+
+        let data = FileManager.default.contents(atPath: stdoutPath)
+        let output = data.flatMap { String(data: $0, encoding: .utf8) }?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        #expect(output == "hello world")
+    }
+
+    @Test("Direct execution does not interpret shell metacharacters")
+    func directExecutionNoShellInterpretation() async throws {
+        let stdoutPath = NSTemporaryDirectory() + "orc-test-stdout-\(UUID().uuidString).txt"
+        defer { try? FileManager.default.removeItem(atPath: stdoutPath) }
+
+        // Pass shell metacharacters as an argument. With direct execution,
+        // these should be printed literally, not interpreted by a shell.
+        let dangerousArg = "hello; echo INJECTED"
+        let result = try await runner.run(
+            command: "/bin/echo",
+            arguments: [dangerousArg],
+            workingDirectory: nil,
+            environment: nil,
+            timeout: nil,
+            stdoutPath: stdoutPath,
+            stderrPath: nil,
+            executablePath: "/bin/echo"
+        )
+
+        #expect(result.exitCode == 0)
+
+        let data = FileManager.default.contents(atPath: stdoutPath)
+        let output = data.flatMap { String(data: $0, encoding: .utf8) }?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        // The semicolon and "echo INJECTED" should appear literally, not executed.
+        #expect(output == dangerousArg)
+    }
 }

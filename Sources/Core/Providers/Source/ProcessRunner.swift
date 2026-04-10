@@ -18,14 +18,28 @@ struct ProcessRunner: ProcessRunning, Sendable {
         environment: [String: String]?,
         timeout: Int?,
         stdoutPath: String?,
-        stderrPath: String?
+        stderrPath: String?,
+        executablePath: String? = nil
     ) async throws -> ProcessResult {
         let resolvedStdoutPath = stdoutPath ?? "/dev/null"
         let resolvedStderrPath = stderrPath ?? "/dev/null"
 
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-c", command]
+
+        if let executablePath {
+            // Direct execution: bypass the shell entirely. The executable is
+            // invoked with the supplied arguments as its argv, so no shell
+            // metacharacter interpretation occurs. This eliminates
+            // shell-string injection for known binaries.
+            process.executableURL = URL(fileURLWithPath: executablePath)
+            process.arguments = arguments
+        } else {
+            // Legacy shell mode: wrap the command string in /bin/zsh -c.
+            // Use this only for user-supplied shell commands that need shell
+            // features (pipes, redirects, variable expansion, etc.).
+            process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+            process.arguments = ["-c", command]
+        }
 
         if let workingDirectory {
             process.currentDirectoryURL = URL(fileURLWithPath: workingDirectory)

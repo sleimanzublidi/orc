@@ -68,6 +68,15 @@ public protocol WorkflowParsing: Sendable {
 // MARK: - ProcessRunning
 
 /// Runs subprocesses with captured output and optional timeout.
+///
+/// When `executablePath` is non-nil, the process is launched directly using
+/// that path as the executable and `arguments` as its argv — no shell wrapping.
+/// When `executablePath` is nil (the default), the `command` string is executed
+/// via `/bin/zsh -c`, which is the legacy shell-based mode.
+///
+/// Prefer `executablePath` for known binaries to avoid shell-string injection.
+/// Use the shell-based mode only for user-supplied shell commands that need
+/// shell features (pipes, redirects, variable expansion, etc.).
 public protocol ProcessRunning: Sendable {
     func run(
         command: String,
@@ -76,8 +85,36 @@ public protocol ProcessRunning: Sendable {
         environment: [String: String]?,
         timeout: Int?,
         stdoutPath: String?,
-        stderrPath: String?
+        stderrPath: String?,
+        executablePath: String?
     ) async throws -> ProcessResult
+}
+
+// MARK: - ProcessRunning Default
+
+extension ProcessRunning {
+    /// Default implementation that passes `nil` for `executablePath`,
+    /// preserving the legacy shell-based behavior for existing callers.
+    public func run(
+        command: String,
+        arguments: [String],
+        workingDirectory: String?,
+        environment: [String: String]?,
+        timeout: Int?,
+        stdoutPath: String?,
+        stderrPath: String?
+    ) async throws -> ProcessResult {
+        try await run(
+            command: command,
+            arguments: arguments,
+            workingDirectory: workingDirectory,
+            environment: environment,
+            timeout: timeout,
+            stdoutPath: stdoutPath,
+            stderrPath: stderrPath,
+            executablePath: nil
+        )
+    }
 }
 
 // MARK: - TmuxProviding

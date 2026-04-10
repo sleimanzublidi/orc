@@ -122,4 +122,40 @@ struct ShellProviderTests {
         )
         #expect(provider.name == "shell")
     }
+
+    @Test("Uses direct execution with configured shell to prevent injection")
+    func directExecutionPreventsInjection() async throws {
+        let runner = FakeProcessRunner(exitCode: 0, stdoutContent: "ok")
+
+        let provider = ShellProvider(
+            defaultShell: "/bin/bash",
+            processRunner: runner,
+            tmuxProvider: FakeTmuxProvider()
+        )
+
+        let dangerousCommand = "echo 'it'\\''s dangerous; rm -rf /'"
+        _ = try await provider.execute(prompt: dangerousCommand, context: context)
+
+        // Verify the shell is invoked directly with the command as a
+        // discrete -c argument, not interpolated into a shell string.
+        #expect(runner.capturedExecutablePath == "/bin/bash")
+        #expect(runner.capturedArguments == ["-c", dangerousCommand])
+    }
+
+    @Test("Uses direct execution even for default zsh shell")
+    func directExecutionForZsh() async throws {
+        let runner = FakeProcessRunner(exitCode: 0, stdoutContent: "ok")
+
+        let provider = ShellProvider(
+            defaultShell: "/bin/zsh",
+            processRunner: runner,
+            tmuxProvider: FakeTmuxProvider()
+        )
+
+        _ = try await provider.execute(prompt: "ls -la", context: context)
+
+        // Even with zsh, direct execution is used to keep the code path uniform.
+        #expect(runner.capturedExecutablePath == "/bin/zsh")
+        #expect(runner.capturedArguments == ["-c", "ls -la"])
+    }
 }
