@@ -7,12 +7,13 @@ public struct OrcCommand: AsyncParsableCommand {
     public static let configuration = CommandConfiguration(
         commandName: "orc",
         abstract: "Orchestrate AI agents via YAML-defined workflows",
-        version: OrcVersion.current,
+        version: OrcInfo.description,
         subcommands: [
             InitCommand.self,
             ValidateCommand.self,
             StartCommand.self,
             ResumeCommand.self,
+            CatalogCommand.self,
             ListCommand.self,
             StatusCommand.self,
             AttachCommand.self,
