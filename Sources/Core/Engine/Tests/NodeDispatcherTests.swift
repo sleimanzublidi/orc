@@ -604,4 +604,151 @@ struct NodeDispatcherTests {
         // Verify the directory was actually created.
         #expect(FileManager.default.fileExists(atPath: expectedPath))
     }
+
+    // MARK: - Interactive Session tmuxSession Persistence
+
+    @Test("Interactive session node persists tmuxSession in NodeExecution record")
+    func interactiveSessionPersistsTmuxSession() async throws {
+        let fakeProvider = FakeAgentProvider(name: "fake")
+        fakeProvider.defaultOutput = "session-output"
+        let store = FakeWorkflowStore()
+
+        // Configure tmux to exit immediately so the test doesn't wait.
+        let tmux = FakeTmuxProvider()
+        tmux.existsCheckCount = 0
+        tmux.capturedOutput = "captured"
+
+        let nodes = [
+            Models.Node(
+                id: "interactive-A",
+                agent: "fake",
+                prompt: "start session",
+                interactive: .session
+            ),
+        ]
+
+        let workflow = Workflow(name: "test", nodes: nodes)
+        let planner = ExecutionPlanner()
+        let plan = try planner.plan(workflow: workflow)
+        let registry = ProviderRegistry(providers: [fakeProvider])
+
+        let evaluatorRunner = EvaluatorRunner(
+            providers: registry,
+            store: store,
+            templateResolver: TemplateResolver(),
+            processRunner: FakeProcessRunner(),
+            basePath: "/tmp/test-orc"
+        )
+
+        let interactiveHandler = InteractiveHandler(
+            store: store, providers: registry,
+            tmux: tmux, templateResolver: TemplateResolver()
+        )
+
+        let loopHandler = LoopHandler(
+            providers: registry, store: store,
+            evaluatorRunner: evaluatorRunner, templateResolver: TemplateResolver(),
+            tmux: tmux
+        )
+
+        let run = Run(
+            id: "run-session",
+            workflowName: "test",
+            workflowFile: "/tmp/test.yml",
+            status: .running,
+            workspacePath: "/tmp/workspace"
+        )
+        _ = try await store.createRun(run)
+
+        let dispatcher = NodeDispatcher(
+            plan: plan, providers: registry, store: store,
+            parser: FakeWorkflowParser(),
+            templateResolver: TemplateResolver(),
+            expressionEvaluator: ExpressionEvaluator(),
+            evaluatorRunner: evaluatorRunner,
+            interactiveHandler: interactiveHandler,
+            loopHandler: loopHandler,
+            maxParallelNodes: 4
+        )
+
+        let result = try await dispatcher.execute(run: run, inputs: [:])
+        #expect(result.status == .completed)
+
+        // Verify the NodeExecution record has tmuxSession set to the expected
+        // session name. This is critical for CancellationHandler to be able to
+        // destroy the tmux session on cancel.
+        let executions = try await store.getNodeExecutions(runID: run.id, nodeID: "interactive-A")
+        #expect(executions.count == 1)
+        #expect(executions[0].tmuxSession == "orc-run-session-interactive-A")
+    }
+
+    @Test("Interactive prompt node does not set tmuxSession")
+    func interactivePromptDoesNotSetTmuxSession() async throws {
+        let fakeProvider = FakeAgentProvider(name: "fake")
+        let store = FakeWorkflowStore()
+
+        let nodes = [
+            Models.Node(
+                id: "prompt-A",
+                agent: "fake",
+                prompt: "question",
+                interactive: .prompt(message: "Please answer")
+            ),
+        ]
+
+        let workflow = Workflow(name: "test", nodes: nodes)
+        let planner = ExecutionPlanner()
+        let plan = try planner.plan(workflow: workflow)
+        let registry = ProviderRegistry(providers: [fakeProvider])
+
+        let evaluatorRunner = EvaluatorRunner(
+            providers: registry,
+            store: store,
+            templateResolver: TemplateResolver(),
+            processRunner: FakeProcessRunner(),
+            basePath: "/tmp/test-orc"
+        )
+
+        let interactiveHandler = InteractiveHandler(
+            store: store, providers: registry,
+            tmux: FakeTmuxProvider(), templateResolver: TemplateResolver()
+        )
+
+        let loopHandler = LoopHandler(
+            providers: registry, store: store,
+            evaluatorRunner: evaluatorRunner, templateResolver: TemplateResolver(),
+            tmux: FakeTmuxProvider()
+        )
+
+        let run = Run(
+            id: "run-prompt",
+            workflowName: "test",
+            workflowFile: "/tmp/test.yml",
+            status: .running,
+            workspacePath: "/tmp/workspace"
+        )
+        _ = try await store.createRun(run)
+
+        let dispatcher = NodeDispatcher(
+            plan: plan, providers: registry, store: store,
+            parser: FakeWorkflowParser(),
+            templateResolver: TemplateResolver(),
+            expressionEvaluator: ExpressionEvaluator(),
+            evaluatorRunner: evaluatorRunner,
+            interactiveHandler: interactiveHandler,
+            loopHandler: loopHandler,
+            maxParallelNodes: 4
+        )
+
+        let result = try await dispatcher.execute(run: run, inputs: [:])
+
+        // Prompt mode pauses the run, waiting for input.
+        #expect(result.status == .awaitingInput)
+
+        // Verify the NodeExecution record does NOT have tmuxSession set
+        // because prompt mode doesn't use tmux.
+        let executions = try await store.getNodeExecutions(runID: run.id, nodeID: "prompt-A")
+        #expect(executions.count == 1)
+        #expect(executions[0].tmuxSession == nil)
+    }
 }

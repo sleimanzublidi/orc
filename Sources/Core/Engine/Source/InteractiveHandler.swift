@@ -140,13 +140,11 @@ struct InteractiveHandler: Sendable {
     /// Provides a response to a node that is awaiting input.
     ///
     /// - Parameters:
-    ///   - store: The workflow store.
     ///   - runID: The run ID containing the awaiting node.
     ///   - nodeID: The node ID to respond to.
     ///   - response: The user's response text.
     /// - Throws: `EngineError.nodeNotAwaitingInput` if the node is not in awaiting_input status.
     func respond(
-        store: any WorkflowStoring,
         runID: String,
         nodeID: String,
         response: String

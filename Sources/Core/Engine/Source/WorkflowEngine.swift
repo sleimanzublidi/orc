@@ -222,6 +222,16 @@ public actor WorkflowEngine {
         // Parse the workflow.
         let workflow = try parser.parse(file: workflowFile)
 
+        // Prevent concurrent runs of the same workflow file. A workflow is
+        // considered "in-flight" if any existing run for the same file has
+        // status .running, .pending, or .awaitingInput.
+        for status in [RunStatus.running, .pending, .awaitingInput] {
+            let existingRuns = try await store.listRuns(status: status)
+            if let existing = existingRuns.first(where: { $0.workflowFile == workflowFile }) {
+                throw EngineError.workflowAlreadyRunning(id: existing.id)
+            }
+        }
+
         // Build execution plan (topological sort).
         let planner = ExecutionPlanner()
         let plan = try planner.plan(workflow: workflow)
@@ -459,7 +469,7 @@ public actor WorkflowEngine {
             store: store, providers: providers,
             tmux: ProviderFactory.makeTmuxSession(), templateResolver: templateResolver
         )
-        try await handler.respond(store: store, runID: runID, nodeID: nodeID, response: response)
+        try await handler.respond(runID: runID, nodeID: nodeID, response: response)
 
         // Re-dispatch the workflow so downstream nodes that depend on
         // this interactive response can proceed (design spec §7.4).
@@ -519,14 +529,17 @@ public actor WorkflowEngine {
 
     /// Validates a workflow YAML file without executing it.
     ///
-    /// Parses the file and runs structural validation, returning any errors
-    /// and warnings found.
+    /// Parses the file and runs structural validation, returning the parsed
+    /// workflow alongside any errors and warnings found. The workflow is
+    /// included so callers can display metadata (name, node count, etc.)
+    /// without re-parsing.
     ///
     /// - Parameter workflowFile: Path to the workflow YAML file.
-    /// - Returns: A `ValidationResult` with errors and warnings.
-    public func validate(workflowFile: String) throws -> ValidationResult {
+    /// - Returns: A tuple of the parsed `Workflow` and its `ValidationResult`.
+    public func validate(workflowFile: String) throws -> (Workflow, ValidationResult) {
         let workflow = try parser.parse(file: workflowFile)
-        return parser.validate(workflow: workflow)
+        let result = parser.validate(workflow: workflow)
+        return (workflow, result)
     }
 
     // MARK: - Configuration

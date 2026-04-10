@@ -305,7 +305,7 @@ struct NodeDispatcher: Sendable {
         context: TaskContext
     ) async -> (String, NodeStatus, String?, (any Error)?) {
         let execID = UUID().uuidString
-        let agentName = node.agent ?? (node.command != nil ? "shell" : "shell")
+        let agentName = node.agent ?? "shell"
 
         // Resolve the prompt/command template.
         let resolvedPrompt: String
@@ -401,6 +401,13 @@ struct NodeDispatcher: Sendable {
             message = nil
         }
 
+        // Compute the tmux session name up front so it can be persisted in the
+        // NodeExecution record. CancellationHandler reads tmuxSession to destroy
+        // interactive sessions on cancel — without this, it would always be nil.
+        let sessionName: String? = interactive == .session
+            ? "orc-\(run.id)-\(node.id)"
+            : nil
+
         let exec = NodeExecution(
             id: execID,
             runID: run.id,
@@ -408,13 +415,15 @@ struct NodeDispatcher: Sendable {
             status: .running,
             agent: node.agent,
             message: message,
+            tmuxSession: sessionName,
             startedAt: Date()
         )
         _ = try? await store.createNodeExecution(exec)
 
         switch interactive {
         case .session:
-            let sessionName = "orc-\(run.id)-\(node.id)"
+            // sessionName is guaranteed non-nil in the .session branch.
+            let resolvedSessionName = sessionName!
             let maxAttempts = node.retry?.maxAttempts ?? 1
             var lastError: (any Error)?
 
@@ -422,7 +431,7 @@ struct NodeDispatcher: Sendable {
                 do {
                     let output = try await interactiveHandler.handleSession(
                         node: node, run: run, context: context,
-                        sessionName: sessionName, nodeExecutionID: execID
+                        sessionName: resolvedSessionName, nodeExecutionID: execID
                     )
                     try await store.updateNodeExecution(
                         id: execID,

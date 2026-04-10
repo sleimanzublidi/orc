@@ -61,6 +61,10 @@ internal struct MigrationManager {
             }
         }
 
-        try migrator.migrate(dbWriter)
+        do {
+            try migrator.migrate(dbWriter)
+        } catch {
+            throw StoreError.migrationFailed(version: 1, detail: error.localizedDescription)
+        }
     }
 }

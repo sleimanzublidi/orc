@@ -46,10 +46,11 @@ extension ParserError: CustomStringConvertible {
         case .invalidExpression(let node, let detail):
             return "[\(node)] Invalid expression: \(detail)"
         case .validation(let errors):
+            // Indent all error lines consistently with a 2-space prefix.
             return errors.map { err in
                 let prefix = err.nodeID.map { "[\($0)] " } ?? ""
-                return "\(prefix)\(err.message)"
-            }.joined(separator: "\n  ")
+                return "  \(prefix)\(err.message)"
+            }.joined(separator: "\n")
         }
     }
 }
