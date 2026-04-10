@@ -44,6 +44,7 @@ public enum EngineError: Error, Sendable, Equatable {
 
     /// Attempted to initialize a project where `.orc/` already exists.
     case projectAlreadyExists(path: String)
+
 }
 
 extension EngineError: CustomStringConvertible {
@@ -74,7 +75,7 @@ extension EngineError: CustomStringConvertible {
         case .nestedWorkflowFailed(let nodeID, let workflowFile, let detail):
             "Node '\(nodeID)' nested workflow '\(workflowFile)' failed: \(detail)"
         case .projectAlreadyExists(let path):
-            "Project already exists at '\(path)'."
+            "Orc already initialized (\(path))."
         }
     }
 }

@@ -29,12 +29,16 @@ Package.resolved
 # hence it is not needed unless you have added a package configuration file to your project
 .swiftpm
 
+# Swift Build
 .build/
 
 # Local Docs
 Docs/superpowers
 Docs/Reviews
 
-# PreBuild Releases
+# PreBuild Binaries
+PreBuild/orc
 PreBuild/debug*
+
+# Claude
 .claude/scheduled_tasks.lock

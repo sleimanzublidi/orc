@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Orc is a Swift CLI for orchestrating AI agents via YAML-defined workflows. Workflows execute as directed acyclic graphs with automatic parallelization, and state is persisted in a local SQLite database.
 
-**Status:** Pre-implementation (specs complete, no source code yet).
+**Status:** Active development.
 
 ## Build & Test
 
@@ -25,10 +25,11 @@ swift-format lint --recursive .
 
 ## Architecture
 
-Monorepo with 6 SPM library targets + 1 executable. Dependency flow is strictly top-down:
+Monorepo with 6 SPM library targets + 1 executable. The CLI library holds all command logic; the `orc` executable is a thin `@main` entry point. Dependency flow is strictly top-down:
 
 ```
-CLI (executable, thin client over Engine)
+orc (executable, @main entry point)
+ └─ CLI (library, command definitions over Engine)
  └─ Engine (DAG resolver, executor, loop/interactive/resume/cancel)
      ├─ Providers (Claude Code, Shell, CLI Agent implementations)
      │   └─ Models

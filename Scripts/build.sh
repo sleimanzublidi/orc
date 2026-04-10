@@ -8,13 +8,13 @@ if [[ "$CONFIG" != "debug" && "$CONFIG" != "release" ]]; then
 fi
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SOURCES_DIR="$REPO_ROOT/Sources"
+SOURCES_DIR="$REPO_ROOT/Orc"
 PREBUILD_DIR="$REPO_ROOT/PreBuild"
 
 # Read version from OrcVersion.swift
-VERSION=$(grep -oE '"[0-9]+\.[0-9]+\.[0-9]+[^"]*"' "$SOURCES_DIR/CLI/Source/OrcVersion.swift" | tr -d '"')
+VERSION=$(grep -oE '"[0-9]+\.[0-9]+\.[0-9]+[^"]*"' "$SOURCES_DIR/Core/Models/Source/OrcVersion.swift" | tr -d '"')
 if [ -z "$VERSION" ]; then
-    echo "Error: Could not read version from CLI/Source/OrcVersion.swift" >&2
+    echo "Error: Could not read version from Core/Models/Source/OrcVersion.swift" >&2
     exit 1
 fi
 
@@ -23,7 +23,7 @@ cd "$SOURCES_DIR"
 
 if [[ "$CONFIG" == "debug" ]]; then
     echo "Building orc v${VERSION} (debug, host arch)..."
-    swift build -c debug
+    xcrun swift build -c debug
 
     BINARY="$SOURCES_DIR/.build/debug/orc"
     if [ ! -f "$BINARY" ]; then
@@ -31,27 +31,20 @@ if [[ "$CONFIG" == "debug" ]]; then
         exit 1
     fi
 
-    OUTPUT_DIR="$PREBUILD_DIR/debug-orc-cli-${VERSION}"
-    rm -rf "$OUTPUT_DIR"
-    mkdir -p "$OUTPUT_DIR"
-    cp "$BINARY" "$OUTPUT_DIR/orc"
-
-    # Checksum
-    shasum -a 256 "$OUTPUT_DIR/orc" | awk '{print $1}' > "$OUTPUT_DIR/orc-cli-${VERSION}.checksum.txt"
+    cp "$BINARY" "$PREBUILD_DIR/orc"
 
     echo ""
-    echo "Debug build: $OUTPUT_DIR/orc"
-    echo "Checksum:    $OUTPUT_DIR/orc-cli-${VERSION}.checksum.txt"
+    echo "Debug build: $PREBUILD_DIR/orc"
 else
     echo "Building orc v${VERSION} (release, universal)..."
 
     # Build arm64
     echo "  Building arm64..."
-    swift build -c release --arch arm64
+    xcrun swift build -c release --arch arm64
 
     # Build x86_64
     echo "  Building x86_64..."
-    swift build -c release --arch x86_64
+    xcrun swift build -c release --arch x86_64
 
     ARM64_BINARY="$SOURCES_DIR/.build/arm64-apple-macosx/release/orc"
     X86_BINARY="$SOURCES_DIR/.build/x86_64-apple-macosx/release/orc"

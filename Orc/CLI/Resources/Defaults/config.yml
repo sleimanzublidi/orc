@@ -1,0 +1,13 @@
+# Orc configuration
+# See https://github.com/orc-cli/orc for documentation.
+
+concurrency:
+  max_parallel_nodes: 8
+
+storage:
+  retention_days: 30
+  retention_policy: completed_only
+
+providers:
+  shell:
+    default_shell: /bin/zsh

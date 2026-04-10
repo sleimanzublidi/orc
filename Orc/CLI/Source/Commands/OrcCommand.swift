@@ -1,7 +1,10 @@
 import ArgumentParser
+import Models
 
-struct OrcCommand: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(
+public struct OrcCommand: AsyncParsableCommand {
+    public init() {}
+
+    public static let configuration = CommandConfiguration(
         commandName: "orc",
         abstract: "Orchestrate AI agents via YAML-defined workflows",
         version: OrcVersion.current,
