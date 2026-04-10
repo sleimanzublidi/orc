@@ -1,6 +1,5 @@
 import ArgumentParser
 
-@main
 struct OrcCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "orc",

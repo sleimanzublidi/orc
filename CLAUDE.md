@@ -52,6 +52,10 @@ Authoritative design and engineering specs live in `Docs/Specs/`:
 
 Always consult these specs before implementing or modifying features.
 
+## Build Policy
+
+- **[ALWAYS]** Fix all errors and warnings found when building — never dismiss them as "pre-existing".
+
 ## Code Conventions
 
 - **Swift 6.3**, strict concurrency checking, macOS 14+ (arm64/x86_64)
