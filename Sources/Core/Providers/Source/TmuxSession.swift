@@ -14,24 +14,28 @@ struct TmuxSession: TmuxProviding, Sendable {
         self.processRunner = processRunner
     }
 
+    private static let tmuxPath = "/usr/bin/tmux"
+
     func createSession(
         name: String,
         command: String,
         workingDirectory: String?
     ) async throws {
-        var args = "tmux new-session -d -s \(shellEscape(name)) \(shellEscape(command))"
+        var args = ["new-session", "-d", "-s", name]
         if let workingDirectory {
-            args = "tmux new-session -d -s \(shellEscape(name)) -c \(shellEscape(workingDirectory)) \(shellEscape(command))"
+            args += ["-c", workingDirectory]
         }
+        args.append(command)
 
         let result = try await processRunner.run(
-            command: args,
-            arguments: [],
+            command: "tmux",
+            arguments: args,
             workingDirectory: workingDirectory,
             environment: nil,
             timeout: 30,
             stdoutPath: nil,
-            stderrPath: nil
+            stderrPath: nil,
+            executablePath: Self.tmuxPath
         )
 
         guard result.exitCode == 0 else {
@@ -44,13 +48,14 @@ struct TmuxSession: TmuxProviding, Sendable {
 
     func destroySession(name: String) async throws {
         let result = try await processRunner.run(
-            command: "tmux kill-session -t \(shellEscape(name))",
-            arguments: [],
+            command: "tmux",
+            arguments: ["kill-session", "-t", name],
             workingDirectory: nil,
             environment: nil,
             timeout: 10,
             stdoutPath: nil,
-            stderrPath: nil
+            stderrPath: nil,
+            executablePath: Self.tmuxPath
         )
 
         guard result.exitCode == 0 else {
@@ -66,13 +71,14 @@ struct TmuxSession: TmuxProviding, Sendable {
         defer { try? FileManager.default.removeItem(atPath: tmpPath) }
 
         let result = try await processRunner.run(
-            command: "tmux capture-pane -t \(shellEscape(name)) -p",
-            arguments: [],
+            command: "tmux",
+            arguments: ["capture-pane", "-t", name, "-p"],
             workingDirectory: nil,
             environment: nil,
             timeout: 10,
             stdoutPath: tmpPath,
-            stderrPath: nil
+            stderrPath: nil,
+            executablePath: Self.tmuxPath
         )
 
         guard result.exitCode == 0 else {
@@ -93,13 +99,14 @@ struct TmuxSession: TmuxProviding, Sendable {
 
     func sessionExists(name: String) async throws -> Bool {
         let result = try await processRunner.run(
-            command: "tmux has-session -t \(shellEscape(name))",
-            arguments: [],
+            command: "tmux",
+            arguments: ["has-session", "-t", name],
             workingDirectory: nil,
             environment: nil,
             timeout: 10,
             stdoutPath: nil,
-            stderrPath: nil
+            stderrPath: nil,
+            executablePath: Self.tmuxPath
         )
         return result.exitCode == 0
     }
@@ -107,23 +114,18 @@ struct TmuxSession: TmuxProviding, Sendable {
     func isAvailable() async -> Bool {
         do {
             let result = try await processRunner.run(
-                command: "which tmux",
-                arguments: [],
+                command: "which",
+                arguments: ["tmux"],
                 workingDirectory: nil,
                 environment: nil,
                 timeout: 5,
                 stdoutPath: nil,
-                stderrPath: nil
+                stderrPath: nil,
+                executablePath: "/usr/bin/which"
             )
             return result.exitCode == 0
         } catch {
             return false
         }
-    }
-
-    /// Wraps a string in single quotes for safe shell interpolation.
-    private func shellEscape(_ value: String) -> String {
-        let escaped = value.replacingOccurrences(of: "'", with: "'\\''")
-        return "'\(escaped)'"
     }
 }

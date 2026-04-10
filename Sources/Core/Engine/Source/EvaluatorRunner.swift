@@ -349,21 +349,20 @@ struct EvaluatorRunner: EvaluatorProviding, Sendable {
         let stdoutFile = NSTemporaryDirectory() + "orc-eval-\(definition.name)-\(UUID().uuidString).out"
         defer { try? FileManager.default.removeItem(atPath: stdoutFile) }
 
-        // Run the child workflow via the Orc CLI, passing last_output as an input.
-        // The command is: orc start <workflow-path> --input last_output=<value>
-        let command = "orc start \(shellEscape(resolvedPath)) --input last_output=\(shellEscape(lastOutput))"
-
+        // Run the child workflow via the Orc CLI using direct execution to avoid
+        // shell-string injection. Arguments are passed as discrete argv elements.
         let stderrFile = NSTemporaryDirectory() + "orc-eval-\(definition.name)-\(UUID().uuidString).err"
         defer { try? FileManager.default.removeItem(atPath: stderrFile) }
 
         let result = try await processRunner.run(
-            command: command,
-            arguments: [],
+            command: "orc",
+            arguments: ["start", resolvedPath, "--input", "last_output=\(lastOutput)"],
             workingDirectory: context.workspacePath,
             environment: nil,
             timeout: nil,
             stdoutPath: stdoutFile,
-            stderrPath: stderrFile
+            stderrPath: stderrFile,
+            executablePath: "/usr/local/bin/orc"
         )
 
         // Non-zero exit = evaluator failure (not "false"). Per spec, evaluator
