@@ -150,4 +150,21 @@ enum TestFixtures {
     ) -> ValidationResult {
         ValidationResult(errors: errors, warnings: warnings)
     }
+
+    // MARK: - Catalog
+
+    static func makeCatalogEntry(
+        name: String = "test-workflow",
+        description: String? = "A test workflow",
+        fileName: String = "test-workflow.yaml"
+    ) -> CatalogEntry {
+        CatalogEntry(name: name, description: description, fileName: fileName)
+    }
+
+    static func makeCatalog(
+        workflows: [CatalogEntry] = [],
+        evaluators: [CatalogEntry] = []
+    ) -> Catalog {
+        Catalog(workflows: workflows, evaluators: evaluators)
+    }
 }
