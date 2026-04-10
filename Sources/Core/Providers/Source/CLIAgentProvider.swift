@@ -1,0 +1,104 @@
+import Foundation
+import Logging
+import Models
+
+// MARK: - CLIAgentProvider
+
+/// Generic agent provider that wraps any CLI command. The `commandTemplate`
+/// may contain `{{prompt}}` which is substituted with the actual prompt at
+/// execution time. For interactive mode, a separate `interactiveCommand`
+/// is launched inside a tmux session.
+struct CLIAgentProvider: AgentProviding, Sendable {
+    let name: String
+
+    private let commandTemplate: String
+    private let interactiveCommand: String?
+    private let processRunner: any ProcessRunning
+    private let tmuxProvider: any TmuxProviding
+    private let logger = Logger(label: "orc.providers.cli-agent")
+
+    init(
+        name: String,
+        commandTemplate: String,
+        interactiveCommand: String? = nil,
+        processRunner: any ProcessRunning = ProcessRunner(),
+        tmuxProvider: any TmuxProviding = TmuxSession()
+    ) {
+        self.name = name
+        self.commandTemplate = commandTemplate
+        self.interactiveCommand = interactiveCommand
+        self.processRunner = processRunner
+        self.tmuxProvider = tmuxProvider
+    }
+
+    func execute(prompt: String, context: TaskContext, timeout: Int? = nil) async throws -> TaskOutput {
+        // Shell-escape the prompt: escape embedded single quotes, then wrap the
+        // entire value in single quotes so shell metacharacters (;, |, $(), etc.)
+        // are inert regardless of how the template references {{prompt}}.
+        let escapedPrompt = prompt.replacingOccurrences(of: "'", with: "'\\''")
+        let command = commandTemplate.replacingOccurrences(of: "{{prompt}}", with: "'\(escapedPrompt)'")
+
+        let stdoutPath = NSTemporaryDirectory()
+            + "orc-cli-agent-stdout-\(UUID().uuidString).txt"
+        let stderrPath = NSTemporaryDirectory()
+            + "orc-cli-agent-stderr-\(UUID().uuidString).txt"
+
+        // Temp files are intentionally NOT deleted here. The engine is
+        // responsible for persisting log paths and cleaning up afterward,
+        // so that stderr content remains available for log persistence.
+
+        let result = try await processRunner.run(
+            command: command,
+            arguments: [],
+            workingDirectory: context.workspacePath,
+            environment: nil,
+            timeout: timeout,
+            stdoutPath: stdoutPath,
+            stderrPath: stderrPath
+        )
+
+        let output = readFileContents(at: stdoutPath)
+
+        guard result.exitCode == 0 else {
+            let stderr = readFileContents(at: stderrPath)
+            throw ProviderError.processFailure(
+                command: command,
+                exitCode: result.exitCode,
+                stderr: stderr
+            )
+        }
+
+        return TaskOutput(output: output, exitStatus: Int(result.exitCode))
+    }
+
+    func executeInteractive(
+        prompt: String,
+        context: TaskContext,
+        sessionName: String,
+        timeout: Int? = nil
+    ) async throws -> TaskOutput {
+        guard let interactiveCommand else {
+            throw ProviderError.tmuxFailure(
+                session: sessionName,
+                detail: "No interactive command configured for provider '\(name)'"
+            )
+        }
+
+        try await tmuxProvider.createSession(
+            name: sessionName,
+            command: interactiveCommand,
+            workingDirectory: context.workspacePath
+        )
+
+        return TaskOutput(output: "", exitStatus: 0)
+    }
+
+    private func readFileContents(at path: String) -> String {
+        guard let data = FileManager.default.contents(atPath: path),
+              let text = String(data: data, encoding: .utf8)
+        else {
+            return ""
+        }
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}

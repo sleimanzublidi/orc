@@ -8,7 +8,7 @@ Engineering specification for the Orc CLI. Translates the [design spec](../orc-c
 
 ### Toolchain
 
-- Swift 6.3, strict concurrency checking enabled
+- Swift 6.0, strict concurrency checking enabled
 - macOS deployment target: macOS 14 (Sonoma)
 - Swift Package Manager as the build system
 
@@ -35,6 +35,7 @@ Engineering specification for the Orc CLI. Translates the [design spec](../orc-c
 - **swift-format** for formatting, configured at package root via `.swift-format`.
 - Follow **Swift API Design Guidelines** for naming.
 - **Access control:** `internal` by default, explicit `public` only on the Engine API surface.
+- **Avoid free functions:** use `enum` with static functions instead.
 
 ---
 
@@ -45,30 +46,38 @@ Engineering specification for the Orc CLI. Translates the [design spec](../orc-c
 Each module is a separate SPM target, enforcing protocol boundaries at compile time.
 
 ```
-orc/
-├── Package.swift
-├── .swift-format
-├── Core/
-│   ├── Models/
-│   │   ├── Source/
-│   │   └── Tests/
-│   ├── Template/
-│   │   ├── Source/
-│   │   └── Tests/
-│   ├── Parser/
-│   │   ├── Source/
-│   │   └── Tests/
-│   ├── Store/
-│   │   ├── Source/
-│   │   └── Tests/
-│   ├── Providers/
-│   │   ├── Source/
-│   │   └── Tests/
-│   └── Engine/
-│       ├── Source/
-│       └── Tests/
-└── CLI/
-    └── Source/
+Orc/
+├── Sources/
+│   ├── Package.swift
+│   ├── .swift-format
+│   ├── Core/
+│   │   ├── Models/
+│   │   │   ├── Source/
+│   │   │   └── Tests/
+│   │   ├── Template/
+│   │   │   ├── Source/
+│   │   │   └── Tests/
+│   │   ├── Parser/
+│   │   │   ├── Source/
+│   │   │   └── Tests/
+│   │   ├── Store/
+│   │   │   ├── Source/
+│   │   │   └── Tests/
+│   │   ├── Providers/
+│   │   │   ├── Source/
+│   │   │   └── Tests/
+│   │   └── Engine/
+│   │       ├── Source/
+│   │       └── Tests/
+│   └── CLI/
+│       └── Source/
+│           ├── Commands/       # Subcommand implementations
+│           ├── Formatting.swift
+│           ├── OrcDirectory.swift
+│           └── OrcVersion.swift
+├── Docs/
+│   └── Specs/
+└── CLAUDE.md
 ```
 
 ### Target Dependency Graph
@@ -87,10 +96,14 @@ CLI (executable)
  │    │    └── Template
  │    │         └── Models
  │    └── Template
+ ├── Models
+ ├── Parser
+ ├── Store
  └── swift-argument-parser
 
 External dependencies:
   Parser    → Yams
+  Engine    → Yams
   Store     → GRDB
   Engine    → swift-log
   Providers → swift-log
@@ -111,15 +124,17 @@ External dependencies:
 ### Key Types
 
 ```
-Workflow            — top-level: name, description, inputs, nodes, output mapping
+Workflow            — top-level: name, description, inputs, nodes, output mapping,
+                      cleanupPolicy: CleanupPolicy
 WorkflowInput       — name, type (string), required flag
 Node                — id, agent, prompt, command, depends_on, output alias,
                       when, loop config, interactive mode, retry/timeout/on_failure,
-                      nested workflow ref + inputs
+                      nested workflow ref + inputs, workspaceMode: WorkspaceMode?
 InteractiveMode     — enum: .session, .prompt(message:)
 LoopConfig          — until (evaluator name), max_iterations, fresh_context
 RetryConfig         — max_attempts, delay_seconds
 FailureStrategy     — enum: .stop, .skip, .continue
+WorkspaceMode       — enum: .shared, .isolated
 NodeStatus          — enum: .pending, .running, .awaitingInput, .completed,
                       .failed, .skipped, .cancelled
 RunStatus           — enum: .pending, .running, .awaitingInput, .completed,
@@ -129,11 +144,13 @@ Run                 — id, workflow name/file, status, workspace path, inputs,
 NodeExecution       — id, run_id, node_id, status, agent, attempt, iteration,
                       prompt, message, output, error, tmux session, timestamps
 EvaluatorDefinition — name, type (ai/script/workflow), agent, prompt, command
+EvaluatorType       — enum: .ai, .script, .workflow
 CleanupPolicy       — enum: .duration(days:), .onSuccess, .always, .never
 TaskContext         — inputs dict, resolved outputs dict, node statuses dict,
                       workspace path
 TaskOutput          — output text, exit status
 LogEntry            — node_execution_id, stream (stdout/stderr), file path, timestamp
+LogStream           — enum: .stdout, .stderr
 RunStats            — run_id, workflow name, status, node count, duration, completed_at
 ProcessResult       — exit code, stdout path, stderr path
 ```
@@ -153,7 +170,7 @@ Defined here, implemented in their respective modules. All concrete implementati
 | `ProcessRunning` | `ProcessRunner` | Providers |
 | `TmuxProviding` | `TmuxSession` | Providers |
 
-All types are `Sendable`. Models are structs/enums — no classes, no mutable state.
+All types are `Sendable`. Models are structs/enums — no classes, no mutable state. All error types conform to `CustomStringConvertible`.
 
 ### Test Strategy
 
@@ -265,7 +282,7 @@ ParserError
 
 ### Design Notes
 
-- Yams deserializes into untyped dictionaries first, then the parser maps to `Workflow`/`Node` models manually. This gives control over error messages rather than relying on `Codable` failures.
+- Yams deserializes into untyped dictionaries first, then the parser maps to `Workflow`/`Node` models manually. This gives control over error messages rather than relying on `Codable` failures. `Node` references use `Models.Node` to disambiguate from `Yams.Node`.
 - DAG validation uses topological sort — if it fails, extract the cycle for the error message.
 - Template variable validation reuses `TemplateResolving` in a dry-run mode (resolve against known input names and node IDs without actual values).
 
@@ -287,11 +304,11 @@ ParserError
 ### Key Types
 
 ```
-WorkflowStore       — actor, owns the GRDB DatabasePool
+WorkflowStore       — actor, owns a GRDB DatabaseQueue
                       Manages connection lifecycle, WAL mode, migrations
 
-MigrationManager    — applies schema migrations on startup
-                      Tracks version in schema_version table
+MigrationManager    — applies schema migrations on startup via GRDB's
+                      built-in DatabaseMigrator (no custom schema_version table)
 ```
 
 ### Protocol
@@ -321,7 +338,7 @@ WorkflowStoring
   getStats() async throws -> [RunStats]
 
   // Lifecycle
-  runRetentionPurge(config:) async throws
+  runRetentionPurge(retentionDays:status:) async throws
 ```
 
 ### Errors
@@ -336,7 +353,7 @@ StoreError
 
 ### Design Notes
 
-- `WorkflowStore` is an actor — serializes all write access. GRDB's `DatabasePool` handles concurrent reads via WAL mode.
+- `WorkflowStore` is an actor — serializes all write access. Uses GRDB's `DatabaseQueue` with WAL mode enabled.
 - WAL mode enabled at database creation (`orc init`), not per-connection.
 - Schema migrations are sequential, numbered, and applied on startup before any command executes. Each migration is a function: `(Database) throws -> Void`.
 - Run ID generation (8-char alphanumeric) lives here — the store guarantees uniqueness via primary key.
@@ -382,6 +399,9 @@ ProcessRunner       — thin wrapper around Foundation Process
                       Stdout/stderr streaming to files
                       Timeout enforcement (SIGTERM → 5s → SIGKILL)
                       Sendable — stateless, captures only config
+
+ProviderRegistry    — resolves agent names to AgentProviding implementations
+                      Registers built-in and custom CLI agent providers
 ```
 
 ### Protocols
@@ -390,7 +410,7 @@ ProcessRunner       — thin wrapper around Foundation Process
 |---|---|---|
 | `AgentProviding` | `ClaudeCodeProvider`, `ShellProvider`, `CLIAgentProvider` | Agent execution |
 | `ProcessRunning` | `ProcessRunner` | Abstracts process execution for testability |
-| `TmuxProviding` | `TmuxSession` | Abstracts tmux operations for testability |
+| `TmuxProviding` | `TmuxSession` | Abstracts tmux operations for testability (includes `sessionExists(name:)`) |
 
 ### Errors
 
@@ -431,19 +451,23 @@ ProviderError
 
 ```
 WorkflowEngine      — actor, entry point for the library
-                      start(workflow:inputs:) → Run
+                      start(workflowFile:inputs:maxParallelNodes:) → Run
                       resume(runID:) → Run
                       cancel(runID:)
                       respond(runID:nodeID:response:) — for prompt-interactive nodes
                       Exposes query API: listRuns(), getStatus(), getLogs(), getStats()
+                      Calls startup retention purge during initialization
 
 ExecutionPlanner    — builds DAG from Workflow, computes topological order,
                       validates dependency graph
+
+ExecutionPlan       — resolved DAG with topological order, ready for dispatch
 
 NodeDispatcher      — walks the DAG using TaskGroup
                       Dispatches ready nodes concurrently (respects max_parallel_nodes)
                       Evaluates when: guards before dispatch
                       Updates context as nodes complete
+                      Handles nested workflow execution for workflow-type nodes
 
 LoopHandler         — manages sequential loop iterations for a node
                       Invokes provider → runs evaluator → checks max_iterations
@@ -454,6 +478,7 @@ InteractiveHandler  — manages interactive node lifecycle
                       Prompt: sets awaiting_input, stores message, processes responses
 
 EvaluatorRunner     — resolves evaluator by name (built-in → .orc/evaluators/)
+                      Loads custom evaluators from `.orc/evaluators/` YAML files
                       Runs the evaluator: AI → provider, script → shell, workflow → recursive
                       Parses result to boolean
 
@@ -472,6 +497,10 @@ WorkspaceManager    — creates workspace directories per run
 
 ConfigManager       — loads/merges config: CLI flags > workflow YAML > .orc/config.yml > defaults
                       YAML-aware read/write for orc config commands
+                      Parses providers section from config for custom CLI agents
+
+OrcConfig           — top-level config model (concurrency, storage, providers)
+ProviderConfig      — per-provider config (path, type, command, interactive_command)
 ```
 
 ### Protocols
@@ -494,6 +523,7 @@ EngineError
   .evaluatorFailed(name:detail:)       — evaluator itself crashed
   .maxIterationsReached(nodeID:count:)
   .dependencyFailed(nodeID:upstream:)  — all deps skipped, node can't run
+  .nestedWorkflowFailed(nodeID:detail:) — child workflow execution failed
 ```
 
 ### Design Notes
@@ -527,9 +557,11 @@ EngineError
 
 ## 9. Module — CLI
 
-**Purpose:** Thin executable target. Parses arguments, calls `Engine`, formats output. Zero business logic.
+**Purpose:** Thin executable target. Parses arguments, calls `Engine`, formats output. Zero business logic. Depends on Engine, Models, Parser, and Store directly (e.g., `ValidateCommand` uses `WorkflowParser` directly, `InitCommand` creates `WorkflowStore` directly).
 
 ### Key Types
+
+Subcommand implementations live in `CLI/Source/Commands/`. Shared utilities (`Formatting`, `OrcDirectory`, `OrcVersion`) are at `CLI/Source/` level. Version is defined in `OrcVersion.swift` as the single source of truth.
 
 ```
 OrcCommand          — root command, @main entry point
