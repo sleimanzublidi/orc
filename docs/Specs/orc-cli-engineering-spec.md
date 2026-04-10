@@ -47,7 +47,7 @@ Each module is a separate SPM target, enforcing protocol boundaries at compile t
 
 ```
 Orc/
-├── Sources/
+├── Orc/
 │   ├── Package.swift
 │   ├── .swift-format
 │   ├── Core/

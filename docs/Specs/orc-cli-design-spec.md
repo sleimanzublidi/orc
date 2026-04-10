@@ -267,11 +267,11 @@ If an evaluator itself fails (AI agent crashes, script errors with an unexpected
 
 ## 6. Project Structure
 
-Multi-module SPM layout under `Sources/`, with library modules in `Core/` and the CLI executable alongside.
+Multi-module SPM layout under `Orc/`, with library modules in `Core/` and the CLI executable alongside.
 
 ```
 Orc/
-├── Sources/
+├── Orc/
 │   ├── Package.swift
 │   ├── .swift-format
 │   ├── Core/

@@ -52,8 +52,8 @@ public actor WorkflowEngine {
 
         let realStore = try StoreFactory.makeStore(path: dbPath)
         let realParser = ParserFactory.makeParser()
-        let realTemplateResolver = makeTemplateResolver()
-        let realExpressionEvaluator = makeExpressionEvaluator()
+        let realTemplateResolver = TemplateFactory.makeResolver()
+        let realExpressionEvaluator = ExpressionFactory.makeEvaluator()
 
         let manager = ConfigManager(basePath: basePath)
         let config = try manager.loadConfig()
@@ -318,11 +318,12 @@ public actor WorkflowEngine {
         )
 
         let startTime = Date()
+        let currentRun = run
 
         // Store the dispatch task so cancel() can cancel it, propagating
         // cooperative cancellation down to ProcessRunner's SIGTERM handler.
-        let dispatchTask = Task<Run, Error> {
-            try await dispatcher.execute(run: run, inputs: inputs)
+        let dispatchTask = Task<Run, Error> { @Sendable in
+            try await dispatcher.execute(run: currentRun, inputs: inputs)
         }
         runningTasks[run.id] = dispatchTask
 
