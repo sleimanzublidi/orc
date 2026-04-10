@@ -163,8 +163,6 @@ struct WorkflowEngineTests {
         #expect(updated?.status == .cancelled)
     }
 
-    // MARK: - Respond
-
     // MARK: - workflowAlreadyRunning Guard
 
     @Test("Start throws workflowAlreadyRunning when a run with the same file is in-flight")
