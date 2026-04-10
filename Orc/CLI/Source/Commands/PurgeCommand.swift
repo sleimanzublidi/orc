@@ -73,7 +73,7 @@ struct PurgeCommand: AsyncParsableCommand {
 ///
 /// - Parameter duration: The duration string.
 /// - Returns: A Date representing now minus the given duration, or nil if unparseable.
-private func parseDuration(_ duration: String) -> Date? {
+func parseDuration(_ duration: String) -> Date? {
     guard duration.hasSuffix("d"),
           let days = Int(duration.dropLast()),
           days > 0

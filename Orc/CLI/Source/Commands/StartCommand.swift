@@ -48,7 +48,7 @@ extension StartCommand {
     /// Parses an array of "key=value" strings into a dictionary.
     ///
     /// Splits on the first `=` character so values can contain `=`.
-    private static func parseInputPairs(_ pairs: [String]) throws -> [String: String] {
+    static func parseInputPairs(_ pairs: [String]) throws -> [String: String] {
     var result: [String: String] = [:]
     for pair in pairs {
         guard let eqIndex = pair.firstIndex(of: "=") else {
