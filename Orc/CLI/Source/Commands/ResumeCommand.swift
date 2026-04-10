@@ -12,10 +12,13 @@ struct ResumeCommand: AsyncParsableCommand {
     var runID: String
 
     func run() async throws {
-        do {
-            let basePath = try OrcDirectory.require()
-            let engine = try await WorkflowEngine(basePath: basePath)
+        let basePath = try OrcDirectory.require()
+        let engine = try await WorkflowEngine(basePath: basePath)
+        try await execute(engine: engine)
+    }
 
+    func execute(engine: some OrcEngineProviding) async throws {
+        do {
             let run = try await engine.resume(runID: runID)
 
             print("Run \(run.id) \(Format.statusIndicator(run.status))")

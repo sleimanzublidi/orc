@@ -10,12 +10,15 @@ struct StatsCommand: AsyncParsableCommand {
     )
 
     func run() async throws {
-        do {
-            let basePath = try OrcDirectory.require()
-            let engine = try await WorkflowEngine(basePath: basePath)
+        let basePath = try OrcDirectory.require()
+        let engine = try await WorkflowEngine(basePath: basePath)
+        try await execute(engine: engine)
+    }
 
+    func execute(engine: some OrcEngineProviding) async throws {
+        do {
             // Database info.
-            let dbPath = (basePath as NSString).appendingPathComponent("orc.db")
+            let dbPath = (engine.basePath as NSString).appendingPathComponent("orc.db")
             let fm = FileManager.default
             print("Database: \(dbPath)")
             if let attrs = try? fm.attributesOfItem(atPath: dbPath),
@@ -24,7 +27,7 @@ struct StatsCommand: AsyncParsableCommand {
             }
 
             // Workspace info.
-            let workspacesDir = (basePath as NSString).appendingPathComponent("workspaces")
+            let workspacesDir = (engine.basePath as NSString).appendingPathComponent("workspaces")
             if fm.fileExists(atPath: workspacesDir),
                let contents = try? fm.contentsOfDirectory(atPath: workspacesDir) {
                 let workspaceCount = contents.filter { !$0.hasPrefix(".") }.count

@@ -21,10 +21,13 @@ struct RespondCommand: AsyncParsableCommand {
     var file: String?
 
     func run() async throws {
-        do {
-            let basePath = try OrcDirectory.require()
-            let engine = try await WorkflowEngine(basePath: basePath)
+        let basePath = try OrcDirectory.require()
+        let engine = try await WorkflowEngine(basePath: basePath)
+        try await execute(engine: engine)
+    }
 
+    func execute(engine: some OrcEngineProviding) async throws {
+        do {
             // Determine the response text from either argument or file.
             let response: String
             if let filePath = file {

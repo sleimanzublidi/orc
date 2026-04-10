@@ -17,10 +17,13 @@ struct ConfigCommand: AsyncParsableCommand {
     var unset: Bool = false
 
     func run() async throws {
-        do {
-            let basePath = try OrcDirectory.require()
-            let engine = try await WorkflowEngine(basePath: basePath)
+        let basePath = try OrcDirectory.require()
+        let engine = try await WorkflowEngine(basePath: basePath)
+        try await execute(engine: engine)
+    }
 
+    func execute(engine: some OrcEngineProviding) async throws {
+        do {
             if let key = key {
                 if unset {
                     // Unset the key.
