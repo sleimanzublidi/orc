@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:Orc}",
+            "name": "Debug orc",
+            "target": "orc",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug orc"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:Orc}",
+            "name": "Release orc",
+            "target": "orc",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release orc"
+        }
+    ]
+}

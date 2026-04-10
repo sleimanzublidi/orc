@@ -267,26 +267,41 @@ If an evaluator itself fails (AI agent crashes, script errors with an unexpected
 
 ## 6. Project Structure
 
-Monorepo layout — the CLI is one project under `Orc/`, with sibling projects alongside it.
+Multi-module SPM layout under `Sources/`, with library modules in `Core/` and the CLI executable alongside.
 
 ```
 Orc/
-├── CLI/
+├── Sources/
 │   ├── Package.swift
-│   ├── Sources/
-│   │   ├── CLI/                  # Executable target (thin layer over OrcEngine)
-│   │   └── OrcEngine/            # Library target (all core logic)
-│   │       ├── Models/           # Workflow, Node, TaskResult, Evaluator, etc.
-│   │       ├── Parser/           # YAML parsing & validation
-│   │       ├── Engine/           # DAG resolver, executor, loop handler
-│   │       ├── Providers/        # AgentProvider protocol + implementations
-│   │       ├── Store/            # SQLite state persistence
-│   │       └── Template/         # {{variable}} resolution & expression evaluation
-│   └── Tests/
-│       └── OrcEngineTests/
-├── <future-sibling-projects>/
-└── Docs/
-    └── Specs                     # Spec documentts
+│   ├── .swift-format
+│   ├── Core/
+│   │   ├── Models/
+│   │   │   ├── Source/
+│   │   │   └── Tests/
+│   │   ├── Template/
+│   │   │   ├── Source/
+│   │   │   └── Tests/
+│   │   ├── Parser/
+│   │   │   ├── Source/
+│   │   │   └── Tests/
+│   │   ├── Store/
+│   │   │   ├── Source/
+│   │   │   └── Tests/
+│   │   ├── Providers/
+│   │   │   ├── Source/
+│   │   │   └── Tests/
+│   │   └── Engine/
+│   │       ├── Source/
+│   │       └── Tests/
+│   └── CLI/
+│       └── Source/
+│           ├── Commands/         # Subcommand implementations
+│           ├── Formatting.swift
+│           ├── OrcDirectory.swift
+│           └── OrcVersion.swift
+├── Docs/
+│   └── Specs/
+└── CLAUDE.md
 ```
 
 ### Design constraint: web server readiness
@@ -390,14 +405,14 @@ Once all nodes finish, the run status is set to `completed` (or `failed`). Final
 ## 9. Provider Abstraction
 
 ```swift
-protocol AgentProvider {
+protocol AgentProviding {
     var name: String { get }
     func execute(prompt: String, context: TaskContext) async throws -> TaskOutput
     func executeInteractive(prompt: String, context: TaskContext, sessionName: String) async throws -> TaskOutput
 }
 ```
 
-The `AgentProvider` protocol covers agent-backed nodes only. Interactive prompt nodes (`interactive: prompt`) are managed directly by the engine — no provider is involved.
+The `AgentProviding` protocol covers agent-backed nodes only. Interactive prompt nodes (`interactive: prompt`) are managed directly by the engine — no provider is involved.
 
 ### Built-in providers
 
@@ -496,7 +511,7 @@ CREATE TABLE stats (
 
 ### Notes
 
-- **Schema versioning:** the `schema_version` table tracks the current schema version. On startup, the engine checks the version and applies migrations if needed. This supports schema evolution across Orc version upgrades.
+- **Schema versioning:** the implementation uses GRDB's built-in `DatabaseMigrator` for schema versioning and migration, rather than the `schema_version` table shown above. The table definition is retained here as a reference for the logical schema version tracking concept. On startup, the engine applies pending migrations via `DatabaseMigrator`. This supports schema evolution across Orc version upgrades.
 - `node_executions` has both `attempt` (retry) and `iteration` (loop cycle). A loop iteration 5 could itself retry 3 times — these are tracked independently.
 - Log content is written to files in the workspace `logs/` directory. The `logs` table stores file paths, not content. This avoids large TEXT blobs in SQLite for long-running agents.
 - The `stats` table is never pruned. It captures a summary row when each run completes, so historical metrics survive `orc purge`. This is intentional — the table stores only lightweight summary data and provides value for long-term usage trends without the cost of keeping full run records.
@@ -751,4 +766,4 @@ macOS only (arm64 and x86_64). Three channels:
 
 - **Local web server** — a thin client over OrcEngine that serves a browser UI for monitoring workflows. The architecture supports this: OrcEngine is the single source of truth, SQLite uses WAL mode for concurrent access, and the engine exposes query-friendly APIs.
 - **Linux support** — not in scope for v1, but no macOS-specific APIs are used in the engine layer.
-- **Additional providers** — the `cli-agent` configuration model allows adding new AI providers without code changes. Custom Swift providers can be added by implementing the `AgentProvider` protocol.
+- **Additional providers** — the `cli-agent` configuration model allows adding new AI providers without code changes. Custom Swift providers can be added by implementing the `AgentProviding` protocol.
