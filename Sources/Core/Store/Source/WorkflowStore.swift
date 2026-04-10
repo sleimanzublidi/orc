@@ -99,8 +99,12 @@ actor WorkflowStore: WorkflowStoring {
     }
 
     func getRun(id: String) async throws -> Run? {
-        try await db.read { db in
-            try Run.fetchOne(db, key: id)
+        do {
+            return try await db.read { db in
+                try Run.fetchOne(db, key: id)
+            }
+        } catch {
+            throw StoreError.internalError(detail: "Failed to read run '\(id)': \(error.localizedDescription)")
         }
     }
 
@@ -187,17 +191,21 @@ actor WorkflowStore: WorkflowStoring {
     }
 
     func listRuns(status: RunStatus?) async throws -> [Run] {
-        try await db.read { db in
-            if let status = status {
-                return try Run
-                    .filter(Column("status") == status.rawValue)
-                    .order(Column("created_at").desc)
-                    .fetchAll(db)
-            } else {
-                return try Run
-                    .order(Column("created_at").desc)
-                    .fetchAll(db)
+        do {
+            return try await db.read { db in
+                if let status = status {
+                    return try Run
+                        .filter(Column("status") == status.rawValue)
+                        .order(Column("created_at").desc)
+                        .fetchAll(db)
+                } else {
+                    return try Run
+                        .order(Column("created_at").desc)
+                        .fetchAll(db)
+                }
             }
+        } catch {
+            throw StoreError.internalError(detail: "Failed to list runs: \(error.localizedDescription)")
         }
     }
 
@@ -248,14 +256,18 @@ actor WorkflowStore: WorkflowStoring {
     }
 
     func getNodeExecutions(runID: String, nodeID: String?) async throws -> [NodeExecution] {
-        try await db.read { db in
-            var request = NodeExecution.filter(Column("run_id") == runID)
-            if let nodeID = nodeID {
-                request = request.filter(Column("node_id") == nodeID)
+        do {
+            return try await db.read { db in
+                var request = NodeExecution.filter(Column("run_id") == runID)
+                if let nodeID = nodeID {
+                    request = request.filter(Column("node_id") == nodeID)
+                }
+                return try request
+                    .order(Column("started_at").asc)
+                    .fetchAll(db)
             }
-            return try request
-                .order(Column("started_at").asc)
-                .fetchAll(db)
+        } catch {
+            throw StoreError.internalError(detail: "Failed to read node executions for run '\(runID)': \(error.localizedDescription)")
         }
     }
 
@@ -291,11 +303,15 @@ actor WorkflowStore: WorkflowStoring {
     }
 
     func getAwaitingInput(runID: String) async throws -> [NodeExecution] {
-        try await db.read { db in
-            try NodeExecution
-                .filter(Column("run_id") == runID)
-                .filter(Column("status") == NodeStatus.awaitingInput.rawValue)
-                .fetchAll(db)
+        do {
+            return try await db.read { db in
+                try NodeExecution
+                    .filter(Column("run_id") == runID)
+                    .filter(Column("status") == NodeStatus.awaitingInput.rawValue)
+                    .fetchAll(db)
+            }
+        } catch {
+            throw StoreError.internalError(detail: "Failed to read awaiting input nodes for run '\(runID)': \(error.localizedDescription)")
         }
     }
 
@@ -318,11 +334,15 @@ actor WorkflowStore: WorkflowStoring {
     }
 
     func getLogEntries(nodeExecutionID: String) async throws -> [LogEntry] {
-        try await db.read { db in
-            try LogEntry
-                .filter(Column("node_execution_id") == nodeExecutionID)
-                .order(Column("timestamp").asc)
-                .fetchAll(db)
+        do {
+            return try await db.read { db in
+                try LogEntry
+                    .filter(Column("node_execution_id") == nodeExecutionID)
+                    .order(Column("timestamp").asc)
+                    .fetchAll(db)
+            }
+        } catch {
+            throw StoreError.internalError(detail: "Failed to read log entries for execution '\(nodeExecutionID)': \(error.localizedDescription)")
         }
     }
 
@@ -347,10 +367,14 @@ actor WorkflowStore: WorkflowStoring {
     }
 
     func getStats() async throws -> [RunStats] {
-        try await db.read { db in
-            try RunStats
-                .order(Column("completed_at").desc)
-                .fetchAll(db)
+        do {
+            return try await db.read { db in
+                try RunStats
+                    .order(Column("completed_at").desc)
+                    .fetchAll(db)
+            }
+        } catch {
+            throw StoreError.internalError(detail: "Failed to read stats: \(error.localizedDescription)")
         }
     }
 

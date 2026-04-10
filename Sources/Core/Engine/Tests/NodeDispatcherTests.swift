@@ -314,6 +314,91 @@ struct NodeDispatcherTests {
         #expect(goodProvider.executedPrompts.count == 1)
     }
 
+    @Test("on_failure: skip causes downstream dependents to be skipped")
+    func failureSkipCascadesToDependents() async throws {
+        let store = FakeWorkflowStore()
+
+        // A succeeds, B fails with on_failure: .skip, C depends only on B
+        // so C should be skipped. The overall run should complete (not fail)
+        // because .skip does not set runFailed.
+        let goodProvider = FakeAgentProvider(name: "good")
+        goodProvider.defaultOutput = "success"
+
+        let failingProvider = FakeAgentProvider(name: "failing")
+        failingProvider.errorToThrow = ProviderError.processFailure(
+            command: "fail", exitCode: 1, stderr: "error"
+        )
+
+        let registry = ProviderRegistry(providers: [goodProvider, failingProvider])
+
+        let nodes = [
+            Models.Node(id: "A", agent: "good", prompt: "do A"),
+            Models.Node(id: "B", agent: "failing", prompt: "fail B", dependsOn: ["A"], onFailure: .skip),
+            Models.Node(id: "C", agent: "good", prompt: "do C", dependsOn: ["B"]),
+        ]
+
+        let workflow = Workflow(name: "test", nodes: nodes)
+        let planner = ExecutionPlanner()
+        let plan = try planner.plan(workflow: workflow)
+
+        let evaluatorRunner = EvaluatorRunner(
+            providers: registry,
+            store: store,
+            templateResolver: TemplateResolver(),
+            processRunner: FakeProcessRunner(),
+            basePath: "/tmp/test-orc"
+        )
+
+        let interactiveHandler = InteractiveHandler(
+            store: store, providers: registry,
+            tmux: FakeTmuxProvider(), templateResolver: TemplateResolver()
+        )
+
+        let loopHandler = LoopHandler(
+            providers: registry, store: store,
+            evaluatorRunner: evaluatorRunner, templateResolver: TemplateResolver(),
+            tmux: FakeTmuxProvider()
+        )
+
+        let run = Run(
+            id: "test-run", workflowName: "test", workflowFile: "/tmp/test.yml",
+            status: .running, workspacePath: "/tmp/workspace"
+        )
+        _ = try await store.createRun(run)
+
+        let dispatcher = NodeDispatcher(
+            plan: plan, providers: registry, store: store,
+            parser: FakeWorkflowParser(),
+            templateResolver: TemplateResolver(),
+            expressionEvaluator: ExpressionEvaluator(),
+            evaluatorRunner: evaluatorRunner,
+            interactiveHandler: interactiveHandler,
+            loopHandler: loopHandler,
+            maxParallelNodes: 4
+        )
+
+        let result = try await dispatcher.execute(run: run, inputs: [:])
+
+        // The run should complete (not fail) because .skip strategy does not
+        // mark the run as failed -- it just skips downstream dependents.
+        #expect(result.status == .completed)
+
+        // A should have executed successfully.
+        #expect(goodProvider.executedPrompts.count == 1)
+        #expect(goodProvider.executedPrompts[0] == "do A")
+
+        // C should NOT have been executed by the provider -- it was skipped
+        // because B failed with .skip strategy and B is C's only dependency.
+        // The skipDependents method removes C from pendingNodes and sets its
+        // in-memory status to .skipped, so the good provider should not have
+        // received C's prompt.
+        #expect(!goodProvider.executedPrompts.contains("do C"))
+
+        // B should have a failed execution record.
+        let bExecs = try await store.getNodeExecutions(runID: run.id, nodeID: "B")
+        #expect(bExecs.contains { $0.status == .failed })
+    }
+
     // MARK: - Resume (Pre-completed Outputs)
 
     @Test("Dispatcher skips already-completed nodes during resume")

@@ -219,15 +219,19 @@ public actor WorkflowEngine {
         inputs: [String: String],
         maxParallelNodes: Int? = nil
     ) async throws -> Run {
+        // Canonicalize the workflow file path so comparisons are robust
+        // against relative vs absolute paths and symlinks.
+        let canonicalPath = URL(fileURLWithPath: workflowFile).standardizedFileURL.path
+
         // Parse the workflow.
-        let workflow = try parser.parse(file: workflowFile)
+        let workflow = try parser.parse(file: canonicalPath)
 
         // Prevent concurrent runs of the same workflow file. A workflow is
         // considered "in-flight" if any existing run for the same file has
         // status .running, .pending, or .awaitingInput.
         for status in [RunStatus.running, .pending, .awaitingInput] {
             let existingRuns = try await store.listRuns(status: status)
-            if let existing = existingRuns.first(where: { $0.workflowFile == workflowFile }) {
+            if let existing = existingRuns.first(where: { $0.workflowFile == canonicalPath }) {
                 throw EngineError.workflowAlreadyRunning(id: existing.id)
             }
         }
