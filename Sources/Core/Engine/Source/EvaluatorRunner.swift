@@ -19,6 +19,25 @@ struct EvaluatorRunner: EvaluatorProviding, Sendable {
     let processRunner: any ProcessRunning
     /// Path to the `.orc/` directory. Custom evaluators live under `<basePath>/evaluators/`.
     let basePath: String
+    /// Path to the orc binary for running child workflows. Defaults to the
+    /// current process executable, falling back to `/usr/local/bin/orc`.
+    let orcBinaryPath: String
+
+    init(
+        providers: ProviderRegistry,
+        store: any WorkflowStoring,
+        templateResolver: any TemplateResolving,
+        processRunner: any ProcessRunning,
+        basePath: String,
+        orcBinaryPath: String = "/usr/local/bin/orc"
+    ) {
+        self.providers = providers
+        self.store = store
+        self.templateResolver = templateResolver
+        self.processRunner = processRunner
+        self.basePath = basePath
+        self.orcBinaryPath = orcBinaryPath
+    }
 
     /// Evaluates the named evaluator against the last output and current context.
     ///
@@ -362,7 +381,7 @@ struct EvaluatorRunner: EvaluatorProviding, Sendable {
             timeout: nil,
             stdoutPath: stdoutFile,
             stderrPath: stderrFile,
-            executablePath: "/usr/local/bin/orc"
+            executablePath: orcBinaryPath
         )
 
         // Non-zero exit = evaluator failure (not "false"). Per spec, evaluator
@@ -380,10 +399,4 @@ struct EvaluatorRunner: EvaluatorProviding, Sendable {
         return parseTruthyResponse(output)
     }
 
-    /// Escapes a string for safe inclusion in a shell command.
-    /// Wraps the value in single quotes, escaping any embedded single quotes.
-    private func shellEscape(_ value: String) -> String {
-        let escaped = value.replacingOccurrences(of: "'", with: "'\\''")
-        return "'\(escaped)'"
-    }
 }

@@ -282,7 +282,8 @@ public actor WorkflowEngine {
             store: store,
             templateResolver: templateResolver,
             processRunner: ProviderFactory.makeProcessRunner(),
-            basePath: workspaceManager.basePath
+            basePath: workspaceManager.basePath,
+            orcBinaryPath: ProcessInfo.processInfo.arguments.first ?? "/usr/local/bin/orc"
         )
 
         let tmuxSession = ProviderFactory.makeTmuxSession()
@@ -379,7 +380,8 @@ public actor WorkflowEngine {
             store: store,
             templateResolver: templateResolver,
             processRunner: ProviderFactory.makeProcessRunner(),
-            basePath: workspaceManager.basePath
+            basePath: workspaceManager.basePath,
+            orcBinaryPath: ProcessInfo.processInfo.arguments.first ?? "/usr/local/bin/orc"
         )
 
         let tmuxSession = ProviderFactory.makeTmuxSession()
