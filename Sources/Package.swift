@@ -109,8 +109,6 @@ let package = Package(
             dependencies: [
                 "Engine",
                 "Models",
-                "Parser",
-                "Store",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
             path: "CLI/Source"

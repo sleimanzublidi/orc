@@ -1,6 +1,6 @@
 import ArgumentParser
 import Engine
-import Parser
+import Models
 
 struct ValidateCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
@@ -13,10 +13,9 @@ struct ValidateCommand: AsyncParsableCommand {
 
     func run() async throws {
         do {
-            let parser = ParserFactory.makeParser()
-            let workflow = try parser.parse(file: workflowFile)
-
-            let result = parser.validate(workflow: workflow)
+            let basePath = try OrcDirectory.require()
+            let engine = try await WorkflowEngine(basePath: basePath)
+            let (workflow, result) = try await engine.validate(workflowFile: workflowFile)
 
             if !result.warnings.isEmpty {
                 for warning in result.warnings {
@@ -39,8 +38,8 @@ struct ValidateCommand: AsyncParsableCommand {
             }
         } catch let error as ExitCode {
             throw error
-        } catch let error as ParserError {
-            Format.printError("Parse error: \(error)")
+        } catch let error as EngineError {
+            Format.printError("Engine error: \(error)")
             throw ExitCode(rawValue: 2)
         } catch {
             Format.printError("Error: \(error)")

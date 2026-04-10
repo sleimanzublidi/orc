@@ -18,14 +18,28 @@ actor WorkflowStore: WorkflowStoring {
     /// Opens or creates a database at the given file path using `DatabasePool` for
     /// concurrent read access via WAL mode, and runs migrations.
     init(path: String) throws {
+        // Verify the parent directory exists before attempting to open the database,
+        // so callers can catch a typed StoreError instead of a raw GRDB error.
+        let parentDir = (path as NSString).deletingLastPathComponent
+        if !FileManager.default.fileExists(atPath: parentDir) {
+            throw StoreError.databaseNotFound(path: path)
+        }
+
         var config = Configuration()
         config.prepareDatabase { db in
             try db.execute(sql: "PRAGMA journal_mode = WAL")
             try db.execute(sql: "PRAGMA foreign_keys = ON")
         }
-        let pool = try DatabasePool(path: path, configuration: config)
-        self.db = pool
-        try MigrationManager.migrate(pool)
+
+        do {
+            let pool = try DatabasePool(path: path, configuration: config)
+            self.db = pool
+            try MigrationManager.migrate(pool)
+        } catch let error as StoreError {
+            throw error
+        } catch {
+            throw StoreError.writeFailure(detail: "Failed to open database at '\(path)': \(error.localizedDescription)")
+        }
     }
 
     /// Creates a store backed by the given DatabaseQueue (useful for in-memory testing).
@@ -33,12 +47,18 @@ actor WorkflowStore: WorkflowStoring {
     /// Foreign keys are enabled on the single connection that DatabaseQueue maintains.
     init(db: DatabaseQueue) throws {
         self.db = db
-        // DatabaseQueue uses a single persistent connection, so setting the PRAGMA
-        // once is sufficient for the lifetime of this queue.
-        try db.write { db in
-            try db.execute(sql: "PRAGMA foreign_keys = ON")
+        do {
+            // DatabaseQueue uses a single persistent connection, so setting the PRAGMA
+            // once is sufficient for the lifetime of this queue.
+            try db.write { db in
+                try db.execute(sql: "PRAGMA foreign_keys = ON")
+            }
+            try MigrationManager.migrate(db)
+        } catch let error as StoreError {
+            throw error
+        } catch {
+            throw StoreError.migrationFailed(version: 1, detail: error.localizedDescription)
         }
-        try MigrationManager.migrate(db)
     }
 
     // MARK: - ID Generation
@@ -68,8 +88,12 @@ actor WorkflowStore: WorkflowStoring {
             createdAt: run.createdAt,
             updatedAt: run.updatedAt
         )
-        try await db.write { db in
-            try newRun.insert(db)
+        do {
+            try await db.write { db in
+                try newRun.insert(db)
+            }
+        } catch {
+            throw StoreError.writeFailure(detail: "Failed to create run '\(runID)': \(error.localizedDescription)")
         }
         return newRun
     }
@@ -81,66 +105,84 @@ actor WorkflowStore: WorkflowStoring {
     }
 
     func updateRunStatus(id: String, status: RunStatus) async throws {
-        try await db.write { db in
-            guard let run = try Run.fetchOne(db, key: id) else {
-                throw StoreError.recordNotFound(table: "runs", id: id)
+        do {
+            try await db.write { db in
+                guard let run = try Run.fetchOne(db, key: id) else {
+                    throw StoreError.recordNotFound(table: "runs", id: id)
+                }
+                // Rebuild with updated status and timestamp
+                let updated = Run(
+                    id: run.id,
+                    workflowName: run.workflowName,
+                    workflowFile: run.workflowFile,
+                    status: status,
+                    workspacePath: run.workspacePath,
+                    inputs: run.inputs,
+                    output: run.output,
+                    cleanupPolicy: run.cleanupPolicy,
+                    createdAt: run.createdAt,
+                    updatedAt: Date()
+                )
+                try updated.update(db)
             }
-            // Rebuild with updated status and timestamp
-            let updated = Run(
-                id: run.id,
-                workflowName: run.workflowName,
-                workflowFile: run.workflowFile,
-                status: status,
-                workspacePath: run.workspacePath,
-                inputs: run.inputs,
-                output: run.output,
-                cleanupPolicy: run.cleanupPolicy,
-                createdAt: run.createdAt,
-                updatedAt: Date()
-            )
-            try updated.update(db)
+        } catch let error as StoreError {
+            throw error
+        } catch {
+            throw StoreError.writeFailure(detail: "Failed to update status for run '\(id)': \(error.localizedDescription)")
         }
     }
 
     func updateRunWorkspacePath(id: String, workspacePath: String) async throws {
-        try await db.write { db in
-            guard let run = try Run.fetchOne(db, key: id) else {
-                throw StoreError.recordNotFound(table: "runs", id: id)
+        do {
+            try await db.write { db in
+                guard let run = try Run.fetchOne(db, key: id) else {
+                    throw StoreError.recordNotFound(table: "runs", id: id)
+                }
+                let updated = Run(
+                    id: run.id,
+                    workflowName: run.workflowName,
+                    workflowFile: run.workflowFile,
+                    status: run.status,
+                    workspacePath: workspacePath,
+                    inputs: run.inputs,
+                    output: run.output,
+                    cleanupPolicy: run.cleanupPolicy,
+                    createdAt: run.createdAt,
+                    updatedAt: Date()
+                )
+                try updated.update(db)
             }
-            let updated = Run(
-                id: run.id,
-                workflowName: run.workflowName,
-                workflowFile: run.workflowFile,
-                status: run.status,
-                workspacePath: workspacePath,
-                inputs: run.inputs,
-                output: run.output,
-                cleanupPolicy: run.cleanupPolicy,
-                createdAt: run.createdAt,
-                updatedAt: Date()
-            )
-            try updated.update(db)
+        } catch let error as StoreError {
+            throw error
+        } catch {
+            throw StoreError.writeFailure(detail: "Failed to update workspace path for run '\(id)': \(error.localizedDescription)")
         }
     }
 
     func updateRunOutput(id: String, output: String) async throws {
-        try await db.write { db in
-            guard let run = try Run.fetchOne(db, key: id) else {
-                throw StoreError.recordNotFound(table: "runs", id: id)
+        do {
+            try await db.write { db in
+                guard let run = try Run.fetchOne(db, key: id) else {
+                    throw StoreError.recordNotFound(table: "runs", id: id)
+                }
+                let updated = Run(
+                    id: run.id,
+                    workflowName: run.workflowName,
+                    workflowFile: run.workflowFile,
+                    status: run.status,
+                    workspacePath: run.workspacePath,
+                    inputs: run.inputs,
+                    output: output,
+                    cleanupPolicy: run.cleanupPolicy,
+                    createdAt: run.createdAt,
+                    updatedAt: Date()
+                )
+                try updated.update(db)
             }
-            let updated = Run(
-                id: run.id,
-                workflowName: run.workflowName,
-                workflowFile: run.workflowFile,
-                status: run.status,
-                workspacePath: run.workspacePath,
-                inputs: run.inputs,
-                output: output,
-                cleanupPolicy: run.cleanupPolicy,
-                createdAt: run.createdAt,
-                updatedAt: Date()
-            )
-            try updated.update(db)
+        } catch let error as StoreError {
+            throw error
+        } catch {
+            throw StoreError.writeFailure(detail: "Failed to update output for run '\(id)': \(error.localizedDescription)")
         }
     }
 
@@ -160,14 +202,18 @@ actor WorkflowStore: WorkflowStoring {
     }
 
     func deleteRuns(olderThan date: Date, status: RunStatus?) async throws {
-        try await db.write { db in
-            // Use updated_at (set on completion/failure) rather than created_at
-            // so retention is measured from when the run finished, not when it started.
-            var request = Run.filter(Column("updated_at") < date)
-            if let status = status {
-                request = request.filter(Column("status") == status.rawValue)
+        do {
+            try await db.write { db in
+                // Use updated_at (set on completion/failure) rather than created_at
+                // so retention is measured from when the run finished, not when it started.
+                var request = Run.filter(Column("updated_at") < date)
+                if let status = status {
+                    request = request.filter(Column("status") == status.rawValue)
+                }
+                try request.deleteAll(db)
             }
-            try request.deleteAll(db)
+        } catch {
+            throw StoreError.writeFailure(detail: "Failed to delete runs: \(error.localizedDescription)")
         }
     }
 
@@ -191,8 +237,12 @@ actor WorkflowStore: WorkflowStoring {
             startedAt: execution.startedAt,
             completedAt: execution.completedAt
         )
-        try await db.write { db in
-            try newExecution.insert(db)
+        do {
+            try await db.write { db in
+                try newExecution.insert(db)
+            }
+        } catch {
+            throw StoreError.writeFailure(detail: "Failed to create node execution '\(execID)': \(error.localizedDescription)")
         }
         return newExecution
     }
@@ -209,28 +259,34 @@ actor WorkflowStore: WorkflowStoring {
         }
     }
 
-    func updateNodeExecution(id: String, status: NodeStatus?, output: String?, error: String?) async throws {
-        try await db.write { db in
-            guard let execution = try NodeExecution.fetchOne(db, key: id) else {
-                throw StoreError.recordNotFound(table: "node_executions", id: id)
+    func updateNodeExecution(id: String, status: NodeStatus?, output: String?, error nodeError: String?) async throws {
+        do {
+            try await db.write { db in
+                guard let execution = try NodeExecution.fetchOne(db, key: id) else {
+                    throw StoreError.recordNotFound(table: "node_executions", id: id)
+                }
+                let updated = NodeExecution(
+                    id: execution.id,
+                    runID: execution.runID,
+                    nodeID: execution.nodeID,
+                    status: status ?? execution.status,
+                    agent: execution.agent,
+                    attempt: execution.attempt,
+                    iteration: execution.iteration,
+                    prompt: execution.prompt,
+                    message: execution.message,
+                    output: output ?? execution.output,
+                    error: nodeError ?? execution.error,
+                    tmuxSession: execution.tmuxSession,
+                    startedAt: execution.startedAt,
+                    completedAt: status == .completed || status == .failed ? Date() : execution.completedAt
+                )
+                try updated.update(db)
             }
-            let updated = NodeExecution(
-                id: execution.id,
-                runID: execution.runID,
-                nodeID: execution.nodeID,
-                status: status ?? execution.status,
-                agent: execution.agent,
-                attempt: execution.attempt,
-                iteration: execution.iteration,
-                prompt: execution.prompt,
-                message: execution.message,
-                output: output ?? execution.output,
-                error: error ?? execution.error,
-                tmuxSession: execution.tmuxSession,
-                startedAt: execution.startedAt,
-                completedAt: status == .completed || status == .failed ? Date() : execution.completedAt
-            )
-            try updated.update(db)
+        } catch let error as StoreError {
+            throw error
+        } catch {
+            throw StoreError.writeFailure(detail: "Failed to update node execution '\(id)': \(error.localizedDescription)")
         }
     }
 
@@ -252,8 +308,12 @@ actor WorkflowStore: WorkflowStoring {
             filePath: filePath,
             timestamp: Date()
         )
-        try await db.write { db in
-            try entry.insert(db)
+        do {
+            try await db.write { db in
+                try entry.insert(db)
+            }
+        } catch {
+            throw StoreError.writeFailure(detail: "Failed to create log entry for execution '\(nodeExecutionID)': \(error.localizedDescription)")
         }
     }
 
@@ -277,8 +337,12 @@ actor WorkflowStore: WorkflowStoring {
             durationSeconds: duration,
             completedAt: Date()
         )
-        try await db.write { db in
-            try stats.insert(db)
+        do {
+            try await db.write { db in
+                try stats.insert(db)
+            }
+        } catch {
+            throw StoreError.writeFailure(detail: "Failed to record stats for run '\(run.id)': \(error.localizedDescription)")
         }
     }
 

@@ -95,7 +95,6 @@ struct InteractiveHandlerTests {
         _ = try await store.createNodeExecution(exec)
 
         try await handler.respond(
-            store: store,
             runID: run.id,
             nodeID: "prompt-node",
             response: "yes, approved"
@@ -126,7 +125,6 @@ struct InteractiveHandlerTests {
 
         await #expect(throws: EngineError.self) {
             try await handler.respond(
-                store: store,
                 runID: run.id,
                 nodeID: "prompt-node",
                 response: "too late"
