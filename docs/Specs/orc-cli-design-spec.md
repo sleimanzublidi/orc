@@ -294,11 +294,12 @@ Orc/
 │   │       ├── Source/
 │   │       └── Tests/
 │   └── CLI/
-│       └── Source/
-│           ├── Commands/         # Subcommand implementations
-│           ├── Formatting.swift
-│           ├── OrcDirectory.swift
-│           └── OrcVersion.swift
+│       ├── Main/
+│       │   └── CLI.swift         # @main entry point (executable)
+│       ├── Source/
+│       │   ├── Commands/         # Subcommand implementations
+│       │   └── Util/             # Formatting, OrcDirectory
+│       └── Tests/
 ├── Docs/
 │   └── Specs/
 └── CLAUDE.md

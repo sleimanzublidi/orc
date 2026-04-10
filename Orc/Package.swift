@@ -1,11 +1,11 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.1
 import PackageDescription
 
 let package = Package(
     name: "Orc",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "orc", targets: ["CLI"]),
+        .executable(name: "orc", targets: ["orc"]),
         .library(name: "OrcEngine", targets: ["Engine"]),
     ],
     dependencies: [
@@ -95,7 +95,9 @@ let package = Package(
                 .product(name: "Yams", package: "Yams"),
                 .product(name: "Logging", package: "swift-log"),
             ],
-            path: "Core/Engine/Source"
+            path: "Core/Engine",
+            exclude: ["Tests"],
+            sources: ["Source"]
         ),
         .testTarget(
             name: "EngineTests",
@@ -103,24 +105,46 @@ let package = Package(
             path: "Core/Engine/Tests"
         ),
 
-        // CLI — executable, depends on Engine + ArgumentParser
+        // Build tool that embeds CLI/Resources/Defaults into Swift source
         .executableTarget(
+            name: "EmbedDefaultsTool",
+            path: "Plugins/EmbedDefaultsTool"
+        ),
+        .plugin(
+            name: "EmbedDefaults",
+            capability: .buildTool(),
+            dependencies: ["EmbedDefaultsTool"],
+            path: "Plugins/EmbedDefaults"
+        ),
+
+        // CLI — library with all command logic
+        .target(
             name: "CLI",
             dependencies: [
                 "Engine",
                 "Models",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
-            path: "CLI/Source"
+            path: "CLI",
+            exclude: ["Tests", "Main", "Resources"],
+            sources: ["Source"],
+            plugins: [.plugin(name: "EmbedDefaults")]
         ),
         .testTarget(
             name: "CLITests",
             dependencies: [
                 "CLI",
-                "Engine",
-                "Models",
             ],
             path: "CLI/Tests"
+        ),
+
+        // orc — executable entry point
+        .executableTarget(
+            name: "orc",
+            dependencies: [
+                "CLI",
+            ],
+            path: "CLI/Main"
         ),
     ]
 )

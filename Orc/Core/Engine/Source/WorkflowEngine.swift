@@ -163,40 +163,16 @@ public actor WorkflowEngine {
         let fm = FileManager.default
         let orcDir = (path as NSString).appendingPathComponent(".orc")
 
-        // Prevent re-initialization over an existing project.
         if fm.fileExists(atPath: orcDir) {
             throw EngineError.projectAlreadyExists(path: orcDir)
         }
-
-        // Create .orc/ directory.
         try fm.createDirectory(atPath: orcDir, withIntermediateDirectories: true)
 
-        // Create subdirectories for evaluators and workflows.
-        let evaluatorsDir = (orcDir as NSString).appendingPathComponent("evaluators")
-        let workflowsDir = (orcDir as NSString).appendingPathComponent("workflows")
-        try fm.createDirectory(atPath: evaluatorsDir, withIntermediateDirectories: true)
-        try fm.createDirectory(atPath: workflowsDir, withIntermediateDirectories: true)
+        for subdir in ["evaluators", "workflows"] {
+            let dir = (orcDir as NSString).appendingPathComponent(subdir)
+            try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        }
 
-        // Create default config.yml using nested YAML format matching the design spec.
-        let configPath = (orcDir as NSString).appendingPathComponent("config.yml")
-        let defaultConfig = """
-        # Orc configuration
-        # See https://github.com/orc-cli/orc for documentation.
-
-        concurrency:
-          max_parallel_nodes: \(ProcessInfo.processInfo.processorCount)
-
-        storage:
-          retention_days: 30
-          retention_policy: completed_only
-
-        providers:
-          shell:
-            default_shell: /bin/zsh
-        """
-        try defaultConfig.write(toFile: configPath, atomically: true, encoding: .utf8)
-
-        // Create orc.db (initializes schema via StoreFactory migrations).
         let dbPath = (orcDir as NSString).appendingPathComponent("orc.db")
         _ = try StoreFactory.makeStore(path: dbPath)
     }

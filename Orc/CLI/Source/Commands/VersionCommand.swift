@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import Models
 
 struct VersionCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
