@@ -5,6 +5,7 @@ import Parser
 import Providers
 import Store
 import Template
+import Yams
 
 /// The main public API actor for executing workflows.
 ///
@@ -506,6 +507,48 @@ public actor WorkflowEngine {
     /// Gets aggregated run statistics.
     public func getStats() async throws -> [RunStats] {
         try await store.getStats()
+    }
+
+    /// Returns a catalog of all workflow and evaluator YAML files found in the
+    /// `.orc/workflows/` and `.orc/evaluators/` directories.
+    ///
+    /// Each entry includes the name and description extracted from the YAML
+    /// front-matter (if present), falling back to the file name stem.
+    /// This method is nonisolated because it only reads from the file system
+    /// using the nonisolated `basePath` property.
+    public nonisolated func catalog() -> Catalog {
+        let workflows = scanDirectory(name: "workflows")
+        let evaluators = scanDirectory(name: "evaluators")
+        return Catalog(workflows: workflows, evaluators: evaluators)
+    }
+
+    /// Scans a subdirectory of `.orc/` for YAML files, extracting name and
+    /// description from each file's top-level keys.
+    private nonisolated func scanDirectory(name: String) -> [CatalogEntry] {
+        let dirPath = (basePath as NSString).appendingPathComponent(name)
+        let fm = FileManager.default
+
+        guard fm.fileExists(atPath: dirPath),
+              let contents = try? fm.contentsOfDirectory(atPath: dirPath) else {
+            return []
+        }
+
+        let yamlFiles = contents.filter { $0.hasSuffix(".yml") || $0.hasSuffix(".yaml") }.sorted()
+
+        return yamlFiles.map { fileName in
+            let filePath = (dirPath as NSString).appendingPathComponent(fileName)
+            guard let data = fm.contents(atPath: filePath),
+                  let yaml = String(data: data, encoding: .utf8),
+                  let parsed = try? Yams.load(yaml: yaml) as? [String: Any] else {
+                return CatalogEntry(name: fileName, description: nil, fileName: fileName)
+            }
+
+            let entryName = (parsed["name"] as? String)
+                ?? String(fileName.split(separator: ".").dropLast().joined(separator: "."))
+            let description = parsed["description"] as? String
+
+            return CatalogEntry(name: entryName, description: description, fileName: fileName)
+        }
     }
 
     // MARK: - Validation
