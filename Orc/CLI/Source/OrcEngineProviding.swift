@@ -48,6 +48,8 @@ public protocol OrcEngineProviding: Sendable {
 
     func getStats() async throws -> [RunStats]
 
+    func catalog() async throws -> Catalog
+
     // MARK: - Validation
 
     func validate(workflowFile: String) async throws -> (Workflow, ValidationResult)

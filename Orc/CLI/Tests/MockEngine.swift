@@ -25,6 +25,7 @@ final class MockEngine: OrcEngineProviding, @unchecked Sendable {
     var getNodeExecutionsHandler: ((String, String?) async throws -> [NodeExecution])?
     var getLogsHandler: ((String, String?, Int?, Int?) async throws -> [LogEntry])?
     var getStatsHandler: (() async throws -> [RunStats])?
+    var catalogHandler: (() async throws -> Catalog)?
 
     // MARK: - Validation
 
@@ -100,6 +101,11 @@ final class MockEngine: OrcEngineProviding, @unchecked Sendable {
 
     func getStats() async throws -> [RunStats] {
         guard let handler = getStatsHandler else { fatalError("getStatsHandler not set") }
+        return try await handler()
+    }
+
+    func catalog() async throws -> Catalog {
+        guard let handler = catalogHandler else { fatalError("catalogHandler not set") }
         return try await handler()
     }
 
