@@ -2,22 +2,26 @@
 
 /// Runtime context passed to agents and templates during node execution.
 /// Contains resolved inputs, accumulated outputs from prior nodes,
-/// and the current workspace path.
+/// the repository root path (working directory for execution), and the
+/// workspace path (for file storage, logs, and artifacts).
 public struct TaskContext: Sendable, Equatable, Codable {
     public let inputs: [String: String]
     public let outputs: [String: String]
     public let nodeStatuses: [String: NodeStatus]
+    public let repoRoot: String
     public let workspacePath: String
 
     public init(
         inputs: [String: String] = [:],
         outputs: [String: String] = [:],
         nodeStatuses: [String: NodeStatus] = [:],
+        repoRoot: String,
         workspacePath: String
     ) {
         self.inputs = inputs
         self.outputs = outputs
         self.nodeStatuses = nodeStatuses
+        self.repoRoot = repoRoot
         self.workspacePath = workspacePath
     }
 }

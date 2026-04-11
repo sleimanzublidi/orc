@@ -54,7 +54,7 @@ struct CLIAgentProvider: AgentProviding, Sendable {
         let result = try await processRunner.run(
             command: command,
             arguments: [],
-            workingDirectory: context.workspacePath,
+            workingDirectory: context.repoRoot,
             environment: nil,
             timeout: timeout,
             stdoutPath: stdoutPath,
@@ -91,7 +91,7 @@ struct CLIAgentProvider: AgentProviding, Sendable {
         try await tmuxProvider.createSession(
             name: sessionName,
             command: interactiveCommand,
-            workingDirectory: context.workspacePath
+            workingDirectory: context.repoRoot
         )
 
         return TaskOutput(output: "", exitStatus: 0)

@@ -1,11 +1,30 @@
 ---
 name: orc-workflow
-description: Use when creating, generating, scaffolding, or modifying Orc workflow YAML files, or when the user asks to build an automation workflow for Orc
+description: Use when creating, generating, scaffolding, modifying, or reviewing Orc workflow YAML files, or when the user asks to build an automation workflow for Orc
 ---
 
 # Orc Workflow
 
-Create and modify Orc workflow YAML files.
+Create, modify, and review Orc workflow YAML files.
+
+## Commands
+
+This skill supports three commands. Parse the first argument after `/orc-workflow`:
+
+| Command | Usage | Description |
+|---------|-------|-------------|
+| `create` | `/orc-workflow create` | Create a new workflow |
+| `update` | `/orc-workflow update [name]` | Modify an existing workflow |
+| `review` | `/orc-workflow review [name]` | Lint, review, and summarize a workflow |
+
+If the command is missing or unrecognized, ask the user which command they want.
+
+### Workflow Selection (for `update` and `review`)
+
+If a workflow name is provided, find it in `.orc/workflows/`. If not provided:
+
+1. List all `.yaml` files in `.orc/workflows/`.
+2. Present a numbered list and ask the user to select one.
 
 ## File Access Restriction
 
@@ -19,7 +38,7 @@ Do **NOT** read any other files in the codebase. All information needed to gener
 
 **ALWAYS** read `schema.md` from this skill's directory before generating or modifying any workflow. It contains the complete YAML schema — all fields, types, defaults, validation rules, template syntax, expression syntax, and providers.
 
-## Creation Workflow
+## Command: `create`
 
 When the user asks to create a new workflow:
 
@@ -48,15 +67,70 @@ When the user asks to create a new workflow:
 
 6. **Validate** by running `orc validate .orc/workflows/<name>.yaml`. If validation fails, fix the issue and re-validate until it passes.
 
-## Modification Workflow
+## Command: `update`
 
 When the user asks to modify an existing workflow:
 
-1. **Read the existing workflow file** in full.
-2. **Apply the requested change** — add/remove/modify nodes, change dependencies, add/remove inputs, update prompts, adjust loop/retry/when config, etc.
-3. **Preserve the comment header** — update usage examples if inputs changed.
-4. **Write the updated file**.
-5. **Validate** by running `orc validate <path>`. Fix and re-validate on failure.
+1. **Select the workflow** (see Workflow Selection above).
+2. **Read the existing workflow file** in full.
+3. **Apply the requested change** — add/remove/modify nodes, change dependencies, add/remove inputs, update prompts, adjust loop/retry/when config, etc.
+4. **Preserve the comment header** — update usage examples if inputs changed.
+5. **Write the updated file**.
+6. **Validate** by running `orc validate <path>`. Fix and re-validate on failure.
+
+## Command: `review`
+
+Review a workflow for correctness, consistency, and quality.
+
+1. **Select the workflow** (see Workflow Selection above).
+
+2. **Read the workflow file** in full. Identify any nested workflows (nodes with `workflow:` field) and read those too. The review applies to the entire workflow tree.
+
+3. **Lint** — run `orc validate <path>` on the selected workflow and every nested workflow. If validation fails, report the errors and propose fixes. Do not continue to the review phase until all workflows pass validation.
+
+4. **Review for inconsistencies** — check each workflow in the tree for:
+   - **Path consistency**: are file read/write paths using the same base (`{{orc_root}}`, `{{workspace}}`, etc.) throughout? Mixing bases for the same data is a bug.
+   - **Template variable resolution**: do all `{{variables}}` in prompts resolve to declared inputs, upstream node outputs, or builtins? Watch for typos and stale references.
+   - **Dependency correctness**: does `depends_on` match actual data flow? A node using `{{foo}}` must depend on the node that produces `foo`.
+   - **Output mapping**: does the top-level `output:` map reference variables that actually exist?
+   - **Nested workflow interface**: do `inputs:` passed to nested workflows match what the child actually uses? Are any pass-throughs redundant (e.g., passing builtins that are already available)?
+   - **Prompt quality**: are agent prompts clear about what to do, what files to read, and what format to output? Are there contradictory instructions?
+   - **When guards**: do conditional expressions reference valid statuses/outputs? Could a guard prevent a node from ever running?
+
+   If issues are found, report each one with its location and propose a fix. Ask the user if they want to apply the fixes.
+
+5. **Summary** — when no issues remain (or after fixes are applied), report:
+
+   ```
+   ## <Workflow Name>
+
+   **Description:** <what the workflow does in 1-2 sentences>
+
+   **DAG:**
+   <ASCII diagram showing node execution order, parallelism, and conditionals>
+
+   **Inputs:**
+   - `<name>` (<type>, required/optional) — <purpose>
+   (or "None" if no inputs)
+
+   **Outputs:**
+   - `<key>` — <what it contains>
+   (or "None" if no output mapping)
+
+   **Nested Workflows:**
+   - `<node-id>` → `<workflow file>` — <what it does>
+   (or "None")
+   ```
+
+   Repeat the summary block for each nested workflow in the tree.
+
+6. **Optimizations** — after the summary, propose improvements if any are warranted. Categories:
+   - **Parallelism**: nodes that could run concurrently but are unnecessarily serialized
+   - **Prompt efficiency**: prompts that are too verbose, duplicate information already in context, or could benefit from passing upstream output directly
+   - **Missing guards**: nodes that should have `when:` or `on_failure:` to handle edge cases
+   - **Missing outputs**: useful node results that aren't surfaced in the output mapping
+
+   If nothing to propose, say "No optimizations suggested." Do not invent improvements for the sake of it.
 
 ## Generation Guidelines
 

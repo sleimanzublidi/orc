@@ -19,6 +19,7 @@ struct NodeDispatcher: Sendable {
     let interactiveHandler: InteractiveHandler
     let loopHandler: LoopHandler
     let maxParallelNodes: Int
+    let repoRoot: String
 
     private let logger = Logger(label: "orc.engine.dispatcher")
 
@@ -211,6 +212,8 @@ struct NodeDispatcher: Sendable {
                 inputs: inputs,
                 outputs: nodeOutputs,
                 nodeStatuses: nodeStatuses,
+                repoRoot: repoRoot,
+
                 workspacePath: run.workspacePath
             )
             var finalOutputParts: [String] = []
@@ -249,6 +252,8 @@ struct NodeDispatcher: Sendable {
             inputs: inputs,
             outputs: nodeOutputs,
             nodeStatuses: nodeStatuses,
+            repoRoot: repoRoot,
+
             workspacePath: run.workspacePath
         )
 
@@ -700,7 +705,8 @@ struct NodeDispatcher: Sendable {
             evaluatorRunner: evaluatorRunner,
             interactiveHandler: interactiveHandler,
             loopHandler: loopHandler,
-            maxParallelNodes: maxParallelNodes
+            maxParallelNodes: maxParallelNodes,
+            repoRoot: repoRoot
         )
 
         // 7. Execute the child workflow.

@@ -229,6 +229,8 @@ struct EvaluatorRunner: EvaluatorProviding, Sendable {
             inputs: context.inputs,
             outputs: resolvedOutputs,
             nodeStatuses: context.nodeStatuses,
+            repoRoot: context.repoRoot,
+
             workspacePath: context.workspacePath
         )
 
@@ -298,6 +300,8 @@ struct EvaluatorRunner: EvaluatorProviding, Sendable {
             inputs: context.inputs,
             outputs: resolvedOutputs,
             nodeStatuses: context.nodeStatuses,
+            repoRoot: context.repoRoot,
+
             workspacePath: context.workspacePath
         )
 
@@ -314,7 +318,7 @@ struct EvaluatorRunner: EvaluatorProviding, Sendable {
         let result = try await processRunner.run(
             command: resolvedCommand,
             arguments: [],
-            workingDirectory: context.workspacePath,
+            workingDirectory: context.repoRoot,
             environment: environment,
             timeout: nil,
             stdoutPath: nil,
@@ -356,6 +360,8 @@ struct EvaluatorRunner: EvaluatorProviding, Sendable {
             inputs: context.inputs,
             outputs: resolvedOutputs,
             nodeStatuses: context.nodeStatuses,
+            repoRoot: context.repoRoot,
+
             workspacePath: context.workspacePath
         )
 
@@ -376,7 +382,7 @@ struct EvaluatorRunner: EvaluatorProviding, Sendable {
         let result = try await processRunner.run(
             command: "orc",
             arguments: ["start", resolvedPath, "--input", "last_output=\(lastOutput)"],
-            workingDirectory: context.workspacePath,
+            workingDirectory: context.repoRoot,
             environment: nil,
             timeout: nil,
             stdoutPath: stdoutFile,

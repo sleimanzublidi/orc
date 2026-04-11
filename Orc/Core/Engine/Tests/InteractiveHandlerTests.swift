@@ -151,7 +151,7 @@ struct InteractiveHandlerTests {
             prompt: "start session",
             interactive: .session
         )
-        let context = TaskContext(workspacePath: "/tmp/workspace")
+        let context = TaskContext(repoRoot: "/tmp/repo", workspacePath: "/tmp/workspace")
 
         // Create a node execution record for the handler to update.
         let execID = "exec-session-1"
@@ -211,7 +211,7 @@ struct InteractiveHandlerTests {
             prompt: "start session",
             interactive: .session
         )
-        let context = TaskContext(workspacePath: "/tmp/workspace")
+        let context = TaskContext(repoRoot: "/tmp/repo", workspacePath: "/tmp/workspace")
 
         let execID = "exec-session-2"
         let exec = NodeExecution(
@@ -250,7 +250,7 @@ struct InteractiveHandlerTests {
             prompt: "fast task",
             interactive: .session
         )
-        let context = TaskContext(workspacePath: "/tmp/workspace")
+        let context = TaskContext(repoRoot: "/tmp/repo", workspacePath: "/tmp/workspace")
 
         let execID = "exec-session-3"
         let exec = NodeExecution(

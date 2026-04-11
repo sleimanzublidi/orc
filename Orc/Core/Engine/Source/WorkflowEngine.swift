@@ -280,6 +280,9 @@ public actor WorkflowEngine {
             tmux: tmuxSession
         )
 
+        // Derive repository root from the .orc base path (its parent directory).
+        let repoRoot = (workspaceManager.basePath as NSString).deletingLastPathComponent
+
         // Dispatch nodes.
         let dispatcher = NodeDispatcher(
             plan: plan,
@@ -291,7 +294,9 @@ public actor WorkflowEngine {
             evaluatorRunner: evaluatorRunner,
             interactiveHandler: interactiveHandler,
             loopHandler: loopHandler,
-            maxParallelNodes: parallelLimit
+            maxParallelNodes: parallelLimit,
+            repoRoot: repoRoot,
+
         )
 
         let startTime = Date()
@@ -379,6 +384,8 @@ public actor WorkflowEngine {
             tmux: tmuxSession
         )
 
+        let repoRoot = (workspaceManager.basePath as NSString).deletingLastPathComponent
+
         let dispatcher = NodeDispatcher(
             plan: plan,
             providers: providers,
@@ -389,7 +396,9 @@ public actor WorkflowEngine {
             evaluatorRunner: evaluatorRunner,
             interactiveHandler: interactiveHandler,
             loopHandler: loopHandler,
-            maxParallelNodes: config.maxParallelNodes
+            maxParallelNodes: config.maxParallelNodes,
+            repoRoot: repoRoot,
+
         )
 
         let startTime = Date()
