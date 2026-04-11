@@ -253,13 +253,13 @@ Configuration precedence: CLI flags > workflow YAML > `.orc/config.yml` > built-
 <!-- ROADMAP -->
 ## Roadmap
 
-* [ ] Core engine (DAG resolver, executor, loop handler)
-* [ ] YAML parser and validation
-* [ ] SQLite persistence and workspace management
-* [ ] Built-in providers (`claude-code`, `shell`)
-* [ ] Custom CLI agent support
-* [ ] Interactive nodes (session and prompt modes)
-* [ ] Nested workflow support
+* [x] Core engine (DAG resolver, executor, loop handler)
+* [x] YAML parser and validation
+* [x] SQLite persistence and workspace management
+* [x] Built-in providers (`claude-code`, `shell`)
+* [x] Custom CLI agent support
+* [x] Interactive nodes (session and prompt modes)
+* [x] Nested workflow support
 * [ ] Agent-level output streaming
 * [ ] Local web server for browser-based monitoring
 * [ ] Linux support
