@@ -261,6 +261,7 @@ Configuration precedence: CLI flags > workflow YAML > `.orc/config.yml` > built-
 * [x] Interactive nodes (session and prompt modes)
 * [x] Nested workflow support
 * [ ] Parameterized nested workflows (input defaults, template resolution in config fields, and caller overrides)
+* [ ] `{{repo_root}}` built-in variable (absolute path to the repository root, distinct from `{{workspace}}`)
 * [ ] Agent-level output streaming
 * [ ] Local web server for browser-based monitoring
 * [ ] Linux support
