@@ -124,6 +124,7 @@ let package = Package(
                 "Engine",
                 "Models",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "Logging", package: "swift-log"),
             ],
             path: "CLI",
             exclude: ["Tests", "Main", "Resources"],
