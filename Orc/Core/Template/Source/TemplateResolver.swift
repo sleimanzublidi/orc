@@ -139,6 +139,12 @@ struct TemplateResolver: TemplateResolving, Sendable {
         }
 
         // Built-in variables
+        if name == "repo_root" {
+            return context.repoRoot
+        }
+        if name == "orc_root" {
+            return context.repoRoot + "/.orc"
+        }
         if name == "workspace" {
             return context.workspacePath
         }

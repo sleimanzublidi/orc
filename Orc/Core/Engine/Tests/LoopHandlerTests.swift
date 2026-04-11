@@ -82,7 +82,7 @@ struct LoopHandlerTests {
 
         let node = Models.Node(id: "loop-node", agent: "fake", prompt: "iterate")
         let loopConfig = LoopConfig(until: "approved", maxIterations: 5)
-        let context = TaskContext(workspacePath: "/tmp/workspace")
+        let context = TaskContext(repoRoot: "/tmp/repo", workspacePath: "/tmp/workspace")
 
         _ = try await store.createRun(makeRun())
 
@@ -107,7 +107,7 @@ struct LoopHandlerTests {
 
         let node = Models.Node(id: "loop-node", agent: "fake", prompt: "iterate")
         let loopConfig = LoopConfig(until: "approved", maxIterations: 3)
-        let context = TaskContext(workspacePath: "/tmp/workspace")
+        let context = TaskContext(repoRoot: "/tmp/repo", workspacePath: "/tmp/workspace")
 
         _ = try await store.createRun(makeRun())
 
@@ -131,7 +131,7 @@ struct LoopHandlerTests {
         let node = Models.Node(id: "loop-node", agent: "fake", prompt: "iterate")
         // Use a non-existent evaluator to trigger evaluatorNotFound.
         let loopConfig = LoopConfig(until: "nonexistent_evaluator", maxIterations: 5)
-        let context = TaskContext(workspacePath: "/tmp/workspace")
+        let context = TaskContext(repoRoot: "/tmp/repo", workspacePath: "/tmp/workspace")
 
         _ = try await store.createRun(makeRun())
 

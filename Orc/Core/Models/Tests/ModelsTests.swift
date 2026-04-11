@@ -627,6 +627,8 @@ struct TaskContextTests {
             inputs: ["branch": "main"],
             outputs: ["build": "ok"],
             nodeStatuses: ["build": .completed, "test": .pending],
+            repoRoot: "/tmp/repo",
+
             workspacePath: "/workspace"
         )
         let decoded = try roundTrip(ctx)
@@ -635,7 +637,7 @@ struct TaskContextTests {
 
     @Test("default values")
     func defaults() {
-        let ctx = TaskContext(workspacePath: "/tmp")
+        let ctx = TaskContext(repoRoot: "/tmp/repo", workspacePath: "/tmp")
         #expect(ctx.inputs.isEmpty)
         #expect(ctx.outputs.isEmpty)
         #expect(ctx.nodeStatuses.isEmpty)

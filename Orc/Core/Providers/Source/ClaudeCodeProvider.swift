@@ -41,7 +41,7 @@ struct ClaudeCodeProvider: AgentProviding, Sendable {
         let result = try await processRunner.run(
             command: claudePath,
             arguments: ["-p", prompt, "--output-format", "json"],
-            workingDirectory: context.workspacePath,
+            workingDirectory: context.repoRoot,
             environment: nil,
             timeout: timeout,
             stdoutPath: stdoutPath,
@@ -74,7 +74,7 @@ struct ClaudeCodeProvider: AgentProviding, Sendable {
         try await tmuxProvider.createSession(
             name: sessionName,
             command: command,
-            workingDirectory: context.workspacePath
+            workingDirectory: context.repoRoot
         )
 
         return TaskOutput(output: "", exitStatus: 0)

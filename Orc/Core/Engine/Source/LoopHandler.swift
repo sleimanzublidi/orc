@@ -122,6 +122,8 @@ struct LoopHandler: Sendable {
                 inputs: currentContext.inputs,
                 outputs: evalOutputs,
                 nodeStatuses: currentContext.nodeStatuses,
+                repoRoot: currentContext.repoRoot,
+
                 workspacePath: currentContext.workspacePath
             )
 
@@ -157,6 +159,8 @@ struct LoopHandler: Sendable {
                 inputs: currentContext.inputs,
                 outputs: nextOutputs,
                 nodeStatuses: currentContext.nodeStatuses,
+                repoRoot: currentContext.repoRoot,
+
                 workspacePath: currentContext.workspacePath
             )
         }

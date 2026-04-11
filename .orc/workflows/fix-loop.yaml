@@ -20,11 +20,11 @@ nodes:
 
       1. **Prepare**:
          - Read CLAUDE.md and CONTRIBUTING.md (if they exist) for conventions and requirements.
-         - Read `{{workspace}}/reviews/known-issues.md` if it exists. Issues listed there have been previously triaged and intentionally accepted — do NOT re-flag them.
-         - Read all existing `iteration-*.md` files in `{{workspace}}/reviews/` to understand what was found and fixed in prior iterations. Focus on verifying prior fixes and finding new issues — do NOT re-flag issues that were already fixed.
+         - Read `{{orc_root}}/reviews/known-issues.md` if it exists. Issues listed there have been previously triaged and intentionally accepted — do NOT re-flag them.
+         - Read all existing `iteration-*.md` files in `{{orc_root}}/reviews/` to understand what was found and fixed in prior iterations. Focus on verifying prior fixes and finding new issues — do NOT re-flag issues that were already fixed.
 
       2. **Gather changes**:
-         - If prior iteration reports exist in `{{workspace}}/reviews/`, focus on recent fixes: use `git diff HEAD~1` for the last fix commit. Also check any unresolved findings from prior reports.
+         - If prior iteration reports exist in `{{orc_root}}/reviews/`, focus on recent fixes: use `git diff HEAD~1` for the last fix commit. Also check any unresolved findings from prior reports.
          - If no prior iteration reports exist, review the full branch diff: `git diff main..HEAD` and `git log main..HEAD --oneline`.
 
       3. **Review**: Analyze changes for:
@@ -42,7 +42,9 @@ nodes:
 
       4. **If zero findings**, save the report (step 5) and output ONLY `APPROVED`. Do NOT proceed to the fix phase.
 
-      5. **Save report**: Record the start timestamp with `date '+%Y%m%d-%H%M%S'`. Determine the iteration number by counting existing `iteration-*.md` files in `{{workspace}}/reviews/` (first run = 1). Create `{{workspace}}/reviews/` if needed. Write to `{{workspace}}/reviews/iteration-<TIMESTAMP>-<N>.md`:
+      5. **Save report**: Record the start timestamp with `date '+%Y%m%d-%H%M%S'`.
+         Determine the iteration number by counting existing `iteration-*.md` files in `{{orc_root}}/reviews/` (first run = 1).
+         Create `{{orc_root}}/reviews/` if needed. Write to `{{orc_root}}/reviews/iteration-<TIMESTAMP>-<N>.md`:
 
          ```
          # Review & Fix — Iteration N
@@ -75,7 +77,7 @@ nodes:
       7. **Fix by priority**: Address P0 first, then P1.
          - Verify fixes don't introduce regressions — build and run tests.
 
-      8. **Record known issues**: For any finding marked as **Skip**, append a line to `{{workspace}}/reviews/known-issues.md`. Create the file if it doesn't exist. Format — one finding per line:
+      8. **Record known issues**: For any finding marked as **Skip**, append a line to `{{orc_root}}/reviews/known-issues.md`. Create the file if it doesn't exist. Format — one finding per line:
 
          ```
          - <short-id>: <title> — <reason> (path/to/file, YYYY-MM-DD)

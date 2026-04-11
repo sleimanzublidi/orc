@@ -65,7 +65,8 @@ struct NodeDispatcherTests {
             evaluatorRunner: evaluatorRunner,
             interactiveHandler: interactiveHandler,
             loopHandler: loopHandler,
-            maxParallelNodes: maxParallelNodes
+            maxParallelNodes: maxParallelNodes,
+            repoRoot: "/tmp/repo"
         )
 
         return (dispatcher, store, run)
@@ -304,7 +305,8 @@ struct NodeDispatcherTests {
             evaluatorRunner: evaluatorRunner,
             interactiveHandler: interactiveHandler,
             loopHandler: loopHandler,
-            maxParallelNodes: 4
+            maxParallelNodes: 4,
+            repoRoot: "/tmp/repo"
         )
 
         let result = try await dispatcher.execute(run: run, inputs: [:])
@@ -374,7 +376,8 @@ struct NodeDispatcherTests {
             evaluatorRunner: evaluatorRunner,
             interactiveHandler: interactiveHandler,
             loopHandler: loopHandler,
-            maxParallelNodes: 4
+            maxParallelNodes: 4,
+            repoRoot: "/tmp/repo"
         )
 
         let result = try await dispatcher.execute(run: run, inputs: [:])
@@ -668,7 +671,8 @@ struct NodeDispatcherTests {
             evaluatorRunner: evaluatorRunner,
             interactiveHandler: interactiveHandler,
             loopHandler: loopHandler,
-            maxParallelNodes: 4
+            maxParallelNodes: 4,
+            repoRoot: "/tmp/repo"
         )
 
         let result = try await dispatcher.execute(run: run, inputs: [:])
@@ -753,7 +757,8 @@ struct NodeDispatcherTests {
             evaluatorRunner: evaluatorRunner,
             interactiveHandler: interactiveHandler,
             loopHandler: loopHandler,
-            maxParallelNodes: 4
+            maxParallelNodes: 4,
+            repoRoot: "/tmp/repo"
         )
 
         let result = try await dispatcher.execute(run: run, inputs: [:])
@@ -822,7 +827,8 @@ struct NodeDispatcherTests {
             evaluatorRunner: evaluatorRunner,
             interactiveHandler: interactiveHandler,
             loopHandler: loopHandler,
-            maxParallelNodes: 4
+            maxParallelNodes: 4,
+            repoRoot: "/tmp/repo"
         )
 
         let result = try await dispatcher.execute(run: run, inputs: [:])

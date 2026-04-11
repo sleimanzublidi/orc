@@ -20,6 +20,8 @@ struct TemplateResolverTests {
             inputs: inputs,
             outputs: outputs,
             nodeStatuses: nodeStatuses,
+            repoRoot: "/tmp/repo",
+
             workspacePath: workspacePath
         )
     }

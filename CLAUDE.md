@@ -14,7 +14,7 @@ Orc is a Swift CLI for orchestrating AI agents via YAML-defined workflows. Workf
 swift build                         # Debug build
 swift build -c release              # Release build
 swift test                          # Run all tests
-swift test --filter <TestName>      # Run a single test
+swift test --filter <TestName>       # Run a single test
 ```
 
 Formatting (once `.swift-format` exists at package root):

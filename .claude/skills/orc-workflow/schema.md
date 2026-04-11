@@ -95,7 +95,9 @@ If the node has no top-level `prompt`, `loop.prompt` is promoted to the node's p
 | `{{variable}}` | Resolved from inputs, node outputs, aliases, or builtins |
 | `{{node_id.output}}` | Output of a specific node |
 | `{{node_id.status}}` | Status of a specific node |
-| `{{workspace}}` | Workspace path (builtin) |
+| `{{repo_root}}` | Repository root path (builtin) |
+| `{{orc_root}}` | `.orc` directory path, i.e. `{{repo_root}}/.orc` (builtin) |
+| `{{workspace}}` | Per-run workspace path for logs/artifacts (builtin) |
 | `{{last_output}}` | Last output (builtin) |
 | `{{var \| default: fallback}}` | Default filter — fallback used if variable is unresolved |
 | `\{{` | Escape — produces literal `{{` in output |
@@ -105,11 +107,13 @@ Whitespace inside braces is trimmed: `{{ x }}` equals `{{x}}`.
 ### Resolution Order
 
 1. Dot-qualified: `{{node_id.output}}` from outputs, `{{node_id.status}}` from statuses
-2. Built-in `{{workspace}}` from workspace path
-3. Built-in `{{last_output}}` from outputs
-4. Input lookup by name
-5. Output/alias lookup by name
-6. Unresolved → error (unless `| default:` is present)
+2. Built-in `{{repo_root}}` from repository root
+3. Built-in `{{orc_root}}` derived as `{{repo_root}}/.orc`
+4. Built-in `{{workspace}}` from per-run workspace path
+5. Built-in `{{last_output}}` from outputs
+6. Input lookup by name
+7. Output/alias lookup by name
+8. Unresolved → error (unless `| default:` is present)
 
 ## Expression Syntax
 
@@ -188,7 +192,7 @@ The parser enforces these rules. Violating any causes a validation error:
 6. Interactive prompt nodes must have a non-empty `message`
 7. All `depends_on` references must point to existing node IDs
 8. No circular dependencies (DAG validation)
-9. All `{{variable}}` references in templates must resolve to known names (inputs, node IDs with `.output`/`.status`, output aliases, or builtins `workspace`/`last_output`)
+9. All `{{variable}}` references in templates must resolve to known names (inputs, node IDs with `.output`/`.status`, output aliases, or builtins `repo_root`/`orc_root`/`workspace`/`last_output`)
 10. Output aliases must not collide with other node IDs or input names
 11. `when:` expressions must be syntactically valid (balanced parens, no dangling operators, no unterminated strings)
 12. Workflow nodes must have a non-empty `inputs` mapping

@@ -20,7 +20,7 @@ private final class CaptureBox<T>: @unchecked Sendable {
 
 @Suite("ClaudeCodeProvider")
 struct ClaudeCodeProviderTests {
-    let context = TaskContext(workspacePath: "/tmp/orc-test")
+    let context = TaskContext(repoRoot: "/tmp/repo", workspacePath: "/tmp/orc-test")
 
     @Test("Uses direct execution with discrete arguments to prevent shell injection")
     func directExecutionWithDiscreteArguments() async throws {

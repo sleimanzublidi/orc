@@ -260,9 +260,9 @@ Configuration precedence: CLI flags > workflow YAML > `.orc/config.yml` > built-
 * [x] Custom CLI agent support
 * [x] Interactive nodes (session and prompt modes)
 * [x] Nested workflow support
+* [x] `{{repo_root}}` built-in variable (absolute path to the repository root, distinct from `{{workspace}}`)
 * [ ] Parameterized nested workflows (input defaults, template resolution in config fields, and caller overrides)
-* [ ] `{{repo_root}}` built-in variable (absolute path to the repository root, distinct from `{{workspace}}`)
-* [ ] Agent-level output streaming
+* [ ] Agent-level output streaming, when running from terminal users don't know what's happening on agents
 * [ ] Local web server for browser-based monitoring
 * [ ] Linux support
 

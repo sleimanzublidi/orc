@@ -6,7 +6,7 @@ import Testing
 
 @Suite("ShellProvider")
 struct ShellProviderTests {
-    let context = TaskContext(workspacePath: "/tmp/orc-test")
+    let context = TaskContext(repoRoot: "/tmp/repo", workspacePath: "/tmp/orc-test")
 
     @Test("Captures stdout as output on success")
     func capturesStdout() async throws {

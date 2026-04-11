@@ -29,7 +29,7 @@ struct EvaluatorRunnerTests {
     }
 
     private func makeContext() -> TaskContext {
-        TaskContext(workspacePath: "/tmp/test")
+        TaskContext(repoRoot: "/tmp/repo", workspacePath: "/tmp/test")
     }
 
     // MARK: - Approved Evaluator
@@ -95,7 +95,7 @@ struct EvaluatorRunnerTests {
     @Test("output_unchanged returns false on first iteration (no previous output)")
     func outputUnchangedFirstIteration() async throws {
         let runner = makeRunner()
-        let context = TaskContext(workspacePath: "/tmp/test")
+        let context = TaskContext(repoRoot: "/tmp/repo", workspacePath: "/tmp/test")
         let result = try await runner.evaluate(name: "output_unchanged", lastOutput: "hello", context: context)
         #expect(result == false)
     }
@@ -105,6 +105,8 @@ struct EvaluatorRunnerTests {
         let runner = makeRunner()
         let context = TaskContext(
             outputs: ["_previous_iteration_output": "hello"],
+            repoRoot: "/tmp/repo",
+
             workspacePath: "/tmp/test"
         )
         let result = try await runner.evaluate(name: "output_unchanged", lastOutput: "hello", context: context)
@@ -116,6 +118,8 @@ struct EvaluatorRunnerTests {
         let runner = makeRunner()
         let context = TaskContext(
             outputs: ["_previous_iteration_output": "hello"],
+            repoRoot: "/tmp/repo",
+
             workspacePath: "/tmp/test"
         )
         let result = try await runner.evaluate(name: "output_unchanged", lastOutput: "world", context: context)

@@ -9,13 +9,13 @@ description: Autonomous self-improvement cycle that generates product and engine
 nodes:
   - id: setup
     command: |
-      DATE=$(date +%Y-%m-%d)
-      BRANCH="self-improve/$DATE"
+      TIMESTAMP=$(date '+%Y%m%d-%H%M%S')
+      BRANCH="self-improve/$(date +%Y-%m-%d)"
       git checkout -b "$BRANCH" 2>/dev/null || git checkout "$BRANCH"
-      mkdir -p {{workspace}}/self-improve
-      LAST=$(ls {{workspace}}/self-improve/*-${DATE}-*.md 2>/dev/null | sed 's/.*-\([0-9]*\)\.md/\1/' | sort -n | tail -1)
+      mkdir -p {{orc_root}}/self-improve
+      LAST=$(ls {{orc_root}}/self-improve/product-ideas-*.md 2>/dev/null | sed 's/.*-\([0-9]*\)\.md/\1/' | sort -n | tail -1)
       ITERATION=$(( ${LAST:-0} + 1 ))
-      echo "${DATE}:${ITERATION}"
+      echo "${TIMESTAMP}:${ITERATION}"
     output: run_info
 
   - id: codebase-summary
@@ -24,27 +24,27 @@ nodes:
     prompt: |
       Produce a concise codebase summary for downstream agents.
 
-      1. Read CLAUDE.md, README.md, and the specs in Docs/Specs/.
-      2. List every SPM target with a one-line purpose.
-      3. Summarize CLI commands and workflow features currently available.
-      4. Run `swift build 2>&1 | tail -5` and `swift test 2>&1 | tail -10` — report pass/fail and any warnings.
+      1. Read CLAUDE.md, README.md, and any design/spec docs referenced there.
+      2. Identify and list the project's modules/packages/targets with a one-line purpose each.
+      3. Summarize the main features and commands currently available.
+      4. Build and test the project using the commands from CLAUDE.md — report pass/fail and any warnings.
       5. Run `git log main..HEAD --oneline` — list recent branch changes.
       6. List any known gaps, TODOs, or incomplete features you notice.
 
       Output a single markdown document (do NOT save to disk).
     output: codebase_summary
 
-  - id: product-thinker
+  - id: product-manager
     agent: claude-code
     depends_on: codebase-summary
     prompt: |
-      You are a product thinker evaluating the product built in this repository.
+      You are a product manager evaluating the product built in this repository.
 
       Here is a codebase summary prepared by a prior agent — use it instead of exploring from scratch:
 
       {{codebase_summary}}
 
-      Read previous idea files in `{{workspace}}/self-improve/` and `git log main..HEAD --oneline` to see what was already proposed or implemented — do NOT re-propose those ideas.
+      Read previous idea files in `{{orc_root}}/self-improve/` and `git log main..HEAD --oneline` to see what was already proposed or implemented — do NOT re-propose those ideas.
 
       If README.md contains a roadmap or planned features section, read it and use it as inspiration — propose ideas that advance or complement planned work.
 
@@ -70,8 +70,8 @@ nodes:
       (repeat for each idea)
       ```
 
-      Parse the run info "{{run_info}}" as DATE:ITERATION (split on colon).
-      Save the file to `{{workspace}}/self-improve/product-ideas-<DATE>-<ITERATION>.md`.
+      Parse the run info "{{run_info}}" as TIMESTAMP:ITERATION (split on colon).
+      Save the file to `{{orc_root}}/self-improve/product-ideas-<TIMESTAMP>-<ITERATION>.md`.
 
       Output the full path of the saved file.
     output: product_ideas_file
@@ -86,13 +86,13 @@ nodes:
 
       {{codebase_summary}}
 
-      Read previous idea files in `{{workspace}}/self-improve/` and `git log main..HEAD --oneline` to see what was already proposed or implemented — do NOT re-propose those ideas.
+      Read previous idea files in `{{orc_root}}/self-improve/` and `git log main..HEAD --oneline` to see what was already proposed or implemented — do NOT re-propose those ideas.
 
       If README.md contains a roadmap or planned features section, read it and use it as inspiration — propose ideas that advance or complement planned work.
 
        Produce a top 3 ranked engineering ideas about architecture and technical implementation. Focus on:
       - Architectural improvements (module boundaries, dependency flow, protocol design)
-      - Performance opportunities (concurrency, caching, I/O)
+      - Performance opportunities (concurrency, caching, I/O) — for each performance idea, include a baseline estimate (e.g., "current: ~2s, expected: ~0.5s") and how to measure it so the improvement can be verified
       - Reliability and robustness (error handling, edge cases, resilience)
       - Code quality (duplication, complexity, testability)
       - Developer experience (build times, test ergonomics, debugging)
@@ -112,8 +112,8 @@ nodes:
       (repeat for each idea)
       ```
 
-      Parse the run info "{{run_info}}" as DATE:ITERATION (split on colon).
-      Save the file to `{{workspace}}/self-improve/engineer-ideas-<DATE>-<ITERATION>.md`.
+      Parse the run info "{{run_info}}" as TIMESTAMP:ITERATION (split on colon).
+      Save the file to `{{orc_root}}/self-improve/engineer-ideas-<TIMESTAMP>-<ITERATION>.md`.
 
       Output the full path of the saved file.
     output: engineer_ideas_file
@@ -121,7 +121,7 @@ nodes:
   - id: adversarial-reviewer
     agent: claude-code
     depends_on:
-      - product-thinker
+      - product-manager
       - principal-engineer
     prompt: |
       You are an adversarial reviewer. Your job is to critically evaluate and debate the quality of proposed ideas, then select only the best for implementation.
@@ -130,7 +130,7 @@ nodes:
       - {{product_ideas_file}}
       - {{engineer_ideas_file}}
 
-      Also read CLAUDE.md and the specs in Docs/Specs/ to ground your evaluation in the project's actual goals and constraints.
+      Also read CLAUDE.md and any design/spec docs referenced there to ground your evaluation in the project's actual goals and constraints.
 
       For each idea across both files, evaluate:
       1. **Is it actually a problem?** — Does evidence in the codebase support this being a real issue, or is it speculative?
@@ -140,7 +140,12 @@ nodes:
 
       Be skeptical. Challenge assumptions. Push back on vague or low-impact suggestions.
 
-      After your analysis, re-rank ALL ideas from both files combined and select the single best one to implement. It should be clearly valuable, feasible, and low-risk.
+      After your analysis, score each surviving idea on three axes (1-5):
+      - **Value** — how much does this improve the product for users? Product ideas that advance the product in the right direction (new capabilities, UX improvements, workflow gaps) score highest. Engineering ideas score high only if they deliver measurable user-facing benefit (e.g., significant performance improvement users would notice). Internal refactors, code cleanup, and architectural changes with no direct user impact score low (1-2) unless they unblock high-value work.
+      - **Feasibility** — can it be implemented in a single focused commit?
+      - **Safety** — how unlikely is it to introduce regressions?
+
+      Multiply the three scores to get a composite rank. Select the idea with the highest composite score. Break ties by preferring the safer option.
 
       Format as a markdown file with:
       ```
@@ -163,29 +168,29 @@ nodes:
       **Implementation notes:** ...
       ```
 
-      Parse the run info "{{run_info}}" as DATE:ITERATION (split on colon).
-      Save the file to `{{workspace}}/self-improve/tasks-<DATE>-<ITERATION>.md`.
+      Parse the run info "{{run_info}}" as TIMESTAMP:ITERATION (split on colon).
+      Save the file to `{{orc_root}}/self-improve/tasks-<TIMESTAMP>-<ITERATION>.md`.
 
       Output the full path of the saved file.
     output: tasks_file
 
-  - id: senior-engineer
+  - id: software-engineer
     agent: claude-code
     depends_on: adversarial-reviewer
+    on_failure: continue
     prompt: |
-      You are a senior engineer. Your job is to plan and implement the single selected task.
+      You are an experienced software engineer. Your job is to plan and implement the single selected task.
 
       Read the task file: {{tasks_file}}
-      Read CLAUDE.md for coding conventions and commit requirements.
-      Read the specs in Docs/Specs/ for design context.
+      Read CLAUDE.md for coding conventions, build/test commands, and commit requirements.
 
       For the selected task:
 
       1. **Plan**: Identify the files to change, the approach, and any risks.
       2. **Implement**: Make the changes. Follow all project conventions from CLAUDE.md.
-      3. **Build**: Run `bash Scripts/build.sh` to verify the build passes.
-      4. **Test**: Run `swift test` to verify tests pass. Add tests for new functionality.
-      5. **Commit**: Create ONE commit with message format: `[Claude] <description of what changed>`
+      3. **Build**: Run the project's build command (from CLAUDE.md) to verify the build passes.
+      4. **Test**: Run the project's test command (from CLAUDE.md) to verify tests pass. Add tests for new functionality.
+      5. **Commit**: Create ONE commit following the commit conventions in CLAUDE.md.
          Stage ALL modified files.
 
       If the task turns out to be more complex than expected or would require breaking changes, output ONLY `SKIPPED` and document why.
@@ -195,12 +200,14 @@ nodes:
 
   - id: fix-loop
     workflow: .orc/workflows/fix-loop.yaml
-    depends_on: senior-engineer
-    when: "{{implementation_result}} != 'SKIPPED'"
+    depends_on: software-engineer
+    when: "{{software-engineer.status}} == 'completed'"
+    inputs:
+      workspace: "{{workspace}}"
 
 output:
   product_ideas: "{{product_ideas_file}}"
   engineer_ideas: "{{engineer_ideas_file}}"
   tasks: "{{tasks_file}}"
   implementation: "{{implementation_result}}"
-  review: "{{fix-loop.review}}"
+  review: "{{fix-loop.output}}"

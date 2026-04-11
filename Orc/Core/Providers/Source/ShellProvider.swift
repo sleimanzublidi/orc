@@ -40,7 +40,7 @@ struct ShellProvider: AgentProviding, Sendable {
         let result = try await processRunner.run(
             command: prompt,
             arguments: ["-c", prompt],
-            workingDirectory: context.workspacePath,
+            workingDirectory: context.repoRoot,
             environment: nil,
             timeout: timeout,
             stdoutPath: stdoutPath,
@@ -73,7 +73,7 @@ struct ShellProvider: AgentProviding, Sendable {
         try await tmuxProvider.createSession(
             name: sessionName,
             command: prompt,
-            workingDirectory: context.workspacePath
+            workingDirectory: context.repoRoot
         )
 
         return TaskOutput(output: "", exitStatus: 0)

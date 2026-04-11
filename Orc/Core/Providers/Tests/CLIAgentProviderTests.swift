@@ -20,7 +20,7 @@ private final class CaptureBox<T>: @unchecked Sendable {
 
 @Suite("CLIAgentProvider")
 struct CLIAgentProviderTests {
-    let context = TaskContext(workspacePath: "/tmp/orc-test")
+    let context = TaskContext(repoRoot: "/tmp/repo", workspacePath: "/tmp/orc-test")
 
     @Test("Substitutes {{prompt}} in command template")
     func promptSubstitution() async throws {

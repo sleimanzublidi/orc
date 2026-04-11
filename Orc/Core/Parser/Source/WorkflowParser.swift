@@ -469,7 +469,7 @@ struct WorkflowParser: WorkflowParsing, Sendable {
     /// Builds the set of names that are valid targets for `{{variable}}` references.
     ///
     /// Includes: input names, node IDs (with `.output` and `.status` suffixes),
-    /// output aliases, and built-in names like `workspace` and `last_output`.
+    /// output aliases, and built-in names like `repo_root`, `orc_root`, `workspace`, and `last_output`.
     private func buildKnownNames(
         inputNames: Set<String>,
         nodeIDs: Set<String>,
@@ -491,6 +491,8 @@ struct WorkflowParser: WorkflowParsing, Sendable {
         known.formUnion(outputAliases)
 
         // Built-in variables
+        known.insert("repo_root")
+        known.insert("orc_root")
         known.insert("workspace")
         known.insert("last_output")
 

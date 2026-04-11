@@ -46,4 +46,7 @@ CLAUDE.local.md
 
 # Orc
 .orc/*
+!.orc/evaluators/
 !.orc/workflows/
+!.orc/reviews/
+!.orc/self-improve/
