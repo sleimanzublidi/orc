@@ -1,5 +1,6 @@
 import ArgumentParser
 import Engine
+import Foundation
 import Models
 
 struct StartCommand: AsyncParsableCommand {
@@ -11,11 +12,17 @@ struct StartCommand: AsyncParsableCommand {
     @Argument(help: "Path to the workflow YAML file.")
     var workflowFile: String
 
-    @Option(name: .long, parsing: .upToNextOption, help: "Input values (key=value).")
+    @Option(name: .long, parsing: .upToNextOption, help: "Input values (key=value or raw value).")
     var input: [String] = []
+
+    @Option(name: .long, parsing: .upToNextOption, help: "File paths (assigned to the first 'type: file' input).")
+    var file: [String] = []
 
     @Option(name: .long, help: "Maximum parallel nodes.")
     var maxParallelNodes: Int?
+
+    @Argument(parsing: .allUnrecognized, help: .hidden)
+    var rawInput: [String] = []
 
     func run() async throws {
         let basePath = try OrcDirectory.require()
@@ -25,18 +32,41 @@ struct StartCommand: AsyncParsableCommand {
 
     func execute(engine: some OrcEngineProviding) async throws {
         do {
-            // Parse key=value input pairs.
-            let inputs = try Self.parseInputPairs(input)
+            let resolvedFile = OrcDirectory.resolveWorkflowFile(workflowFile, basePath: engine.basePath)
 
+            // Build inputs: key=value pairs, raw values, and file paths.
+            let inputs = try await Self.parseInputs(
+                input, rawInput: rawInput, files: file,
+                engine: engine, workflowFile: resolvedFile
+            )
+
+            print("Running workflow \(resolvedFile)")
             let run = try await engine.start(
-                workflowFile: workflowFile,
+                workflowFile: resolvedFile,
                 inputs: inputs,
                 maxParallelNodes: maxParallelNodes
             )
 
-            print("Run \(run.id) \(Format.statusIndicator(run.status))")
-            if let output = run.output {
+            print("Workflow run \(run.id) \(Format.statusIndicator(run.status))")
+            if run.status == .failed {
+                // Show the first failed node's error so the user knows what went wrong.
+                let executions = try await engine.getNodeExecutions(runID: run.id, nodeID: nil)
+                for exec in executions where exec.status == .failed {
+                    let nodeLabel = "[\(exec.nodeID)]"
+                    if let error = exec.error {
+                        Format.printError("  \(nodeLabel) \(error)")
+                    } else {
+                        Format.printError("  \(nodeLabel) failed (no details)")
+                    }
+                }
+            } else if let output = run.output {
                 print("Output: \(output)")
+            } else if run.status == .completed {
+                // No workflow-level output mapping — show last node's output.
+                let executions = try await engine.getNodeExecutions(runID: run.id, nodeID: nil)
+                if let lastOutput = executions.last(where: { $0.status == .completed })?.output {
+                    print("Output: \(lastOutput)")
+                }
             }
         } catch let error as ExitCode {
             throw error
@@ -48,24 +78,109 @@ struct StartCommand: AsyncParsableCommand {
 }
 
 extension StartCommand {
-    /// Parses an array of "key=value" strings into a dictionary.
+    /// Parses an array of strings into key=value pairs and raw (non-pair) parts.
     ///
     /// Splits on the first `=` character so values can contain `=`.
-    static func parseInputPairs(_ pairs: [String]) throws -> [String: String] {
-    var result: [String: String] = [:]
-    for pair in pairs {
-        guard let eqIndex = pair.firstIndex(of: "=") else {
-            Format.printError("Invalid input format '\(pair)'. Expected key=value.")
-            throw ExitCode.failure
+    /// Items without `=` are returned in `rawParts`.
+    static func parseInputPairs(_ pairs: [String]) throws -> (pairs: [String: String], rawParts: [String]) {
+        var result: [String: String] = [:]
+        var rawParts: [String] = []
+
+        for item in pairs {
+            if item.contains("=") {
+                let eqIndex = item.firstIndex(of: "=")!
+                let key = String(item[item.startIndex..<eqIndex])
+                let value = String(item[item.index(after: eqIndex)...])
+                guard !key.isEmpty else {
+                    Format.printError("Invalid input: empty key in '\(item)'.")
+                    throw ExitCode.failure
+                }
+                result[key] = value
+            } else {
+                rawParts.append(item)
+            }
         }
-        let key = String(pair[pair.startIndex..<eqIndex])
-        let value = String(pair[pair.index(after: eqIndex)...])
-        guard !key.isEmpty else {
-            Format.printError("Invalid input: empty key in '\(pair)'.")
-            throw ExitCode.failure
+
+        return (result, rawParts)
+    }
+
+    /// Parses --input values, raw trailing arguments, and --file paths into a dictionary.
+    ///
+    /// - key=value items in `input` become direct entries
+    /// - Non-key=value items in `input` and all `rawInput` items are joined
+    ///   with spaces and assigned to the workflow's first `type: string` input
+    /// - `files` are resolved to absolute paths and assigned to `type: file` inputs
+    ///   in declaration order
+    static func parseInputs(
+        _ input: [String],
+        rawInput: [String],
+        files: [String],
+        engine: some OrcEngineProviding,
+        workflowFile: String
+    ) async throws -> [String: String] {
+        let (parsed, inputRawParts) = try parseInputPairs(input)
+        var result = parsed
+        var rawParts = inputRawParts
+
+        rawParts.append(contentsOf: rawInput)
+
+        let needsWorkflow = !rawParts.isEmpty || !files.isEmpty
+        var workflow: Workflow?
+
+        if needsWorkflow {
+            let (w, _) = try await engine.validate(workflowFile: workflowFile)
+            workflow = w
         }
-        result[key] = value
+
+        // Assign raw text to the first string input not already set.
+        if !rawParts.isEmpty {
+            guard let w = workflow else {
+                Format.printError("Workflow has no inputs to assign raw value to.")
+                throw ExitCode.failure
+            }
+            let firstString = w.input.first { $0.type == "string" && result[$0.name] == nil }
+                ?? w.input.first { result[$0.name] == nil }
+            guard let target = firstString else {
+                Format.printError("Workflow has no available input to assign raw value to.")
+                throw ExitCode.failure
+            }
+            result[target.name] = rawParts.joined(separator: " ")
         }
+
+        // Assign file paths to type: file inputs in declaration order.
+        if !files.isEmpty {
+            guard let w = workflow else {
+                Format.printError("Workflow has no file inputs.")
+                throw ExitCode.failure
+            }
+            let fileInputs = w.input.filter { $0.type == "file" && result[$0.name] == nil }
+            guard fileInputs.count >= files.count else {
+                let available = fileInputs.count
+                Format.printError(
+                    "Workflow has \(available) file input(s) but \(files.count) file(s) were provided."
+                )
+                throw ExitCode.failure
+            }
+
+            let fm = FileManager.default
+            for (fileInput, path) in zip(fileInputs, files) {
+                // Resolve to absolute path.
+                let absolute: String
+                if (path as NSString).isAbsolutePath {
+                    absolute = path
+                } else {
+                    absolute = (fm.currentDirectoryPath as NSString).appendingPathComponent(path)
+                }
+
+                guard fm.fileExists(atPath: absolute) else {
+                    Format.printError("File not found: \(path)")
+                    throw ExitCode.failure
+                }
+
+                result[fileInput.name] = absolute
+            }
+        }
+
         return result
     }
 }
