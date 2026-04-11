@@ -1,6 +1,7 @@
 import ArgumentParser
 import Engine
 import Foundation
+import Logging
 import Models
 
 struct StartCommand: AsyncParsableCommand {
@@ -21,11 +22,27 @@ struct StartCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Maximum parallel nodes.")
     var maxParallelNodes: Int?
 
+    @Flag(name: .long, help: "Enable verbose output (debug-level logging).")
+    var verbose: Bool = false
+
     @Argument(parsing: .allUnrecognized, help: .hidden)
     var rawInput: [String] = []
 
     func run() async throws {
         let basePath = try OrcDirectory.require()
+
+        // Read config to check output.verbose setting.
+        let configManager = ConfigManager(basePath: basePath)
+        let config = try configManager.loadConfig()
+        let isVerbose = verbose || config.verbose
+
+        // Bootstrap swift-log before any Logger instances are created.
+        LoggingSystem.bootstrap { label in
+            var handler = StreamLogHandler.standardOutput(label: label)
+            handler.logLevel = isVerbose ? .debug : .info
+            return handler
+        }
+
         let engine = try await WorkflowEngine(basePath: basePath)
         try await execute(engine: engine)
     }

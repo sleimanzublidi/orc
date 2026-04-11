@@ -19,7 +19,7 @@ public struct ConfigManager: Sendable {
     /// Loads configuration from `.orc/config.yml`, merging with defaults.
     ///
     /// - Returns: A fully populated `OrcConfig`.
-    func loadConfig() throws -> OrcConfig {
+    public func loadConfig() throws -> OrcConfig {
         let configPath = (basePath as NSString).appendingPathComponent("config.yml")
         let fm = FileManager.default
 
