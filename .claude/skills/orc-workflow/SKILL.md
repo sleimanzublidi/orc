@@ -7,6 +7,14 @@ description: Use when creating, generating, scaffolding, or modifying Orc workfl
 
 Create and modify Orc workflow YAML files.
 
+## File Access Restriction
+
+When creating or modifying workflows, **ONLY** read files from:
+1. This skill's directory (e.g., `schema.md`)
+2. The `.orc/` folder at the root of the repository
+
+Do **NOT** read any other files in the codebase. All information needed to generate valid workflows is contained in the schema reference and existing workflow files in `.orc/`.
+
 ## Schema Reference
 
 **ALWAYS** read `schema.md` from this skill's directory before generating or modifying any workflow. It contains the complete YAML schema — all fields, types, defaults, validation rules, template syntax, expression syntax, and providers.
