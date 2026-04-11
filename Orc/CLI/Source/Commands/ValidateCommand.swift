@@ -19,7 +19,8 @@ struct ValidateCommand: AsyncParsableCommand {
 
     func execute(engine: some OrcEngineProviding) async throws {
         do {
-            let (workflow, result) = try await engine.validate(workflowFile: workflowFile)
+            let resolvedFile = OrcDirectory.resolveWorkflowFile(workflowFile, basePath: engine.basePath)
+            let (workflow, result) = try await engine.validate(workflowFile: resolvedFile)
 
             if !result.warnings.isEmpty {
                 for warning in result.warnings {

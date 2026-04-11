@@ -72,7 +72,48 @@ struct TemplateResolver: TemplateResolving, Sendable {
     }
 
     /// Resolves a single variable name against the task context.
+    ///
+    /// Supports the `| default: <value>` filter: if the variable is unresolved
+    /// and a default is provided, the default value is returned instead of throwing.
     private func resolveVariable(_ name: String, context: TaskContext) throws -> String {
+        // Parse optional "| default: <value>" filter.
+        let (variableName, defaultValue) = parseDefaultFilter(name)
+
+        do {
+            return try resolveVariableCore(variableName, context: context)
+        } catch is TemplateError {
+            if let fallback = defaultValue {
+                return fallback
+            }
+            throw TemplateError.unresolvedVariable(name: variableName)
+        }
+    }
+
+    /// Parses a variable expression that may contain a `| default: <value>` filter.
+    /// Returns the bare variable name and the optional default value.
+    private func parseDefaultFilter(_ expression: String) -> (name: String, defaultValue: String?) {
+        guard let pipeIndex = expression.firstIndex(of: "|") else {
+            return (expression, nil)
+        }
+
+        let variableName = expression[expression.startIndex..<pipeIndex]
+            .trimmingCharacters(in: .whitespaces)
+        let filterPart = expression[expression.index(after: pipeIndex)...]
+            .trimmingCharacters(in: .whitespaces)
+
+        // Expect "default: <value>"
+        guard filterPart.hasPrefix("default:") else {
+            return (expression, nil)
+        }
+
+        let defaultValue = filterPart.dropFirst("default:".count)
+            .trimmingCharacters(in: .whitespaces)
+
+        return (variableName, defaultValue)
+    }
+
+    /// Core variable resolution without default-filter handling.
+    private func resolveVariableCore(_ name: String, context: TaskContext) throws -> String {
         // Check for dot-qualified references: node_id.output or node_id.status
         if let dotIndex = name.firstIndex(of: ".") {
             let prefix = String(name[name.startIndex..<dotIndex])

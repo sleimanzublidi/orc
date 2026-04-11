@@ -189,4 +189,46 @@ struct TemplateResolverTests {
             return false
         }
     }
+
+    // MARK: - Default Filter
+
+    @Test("Uses default value when variable is unresolved")
+    func defaultFilterUnresolved() throws {
+        let ctx = makeContext()
+        let result = try resolver.resolve(
+            template: "{{greeting | default: Hello, World!}}",
+            context: ctx
+        )
+        #expect(result == "Hello, World!")
+    }
+
+    @Test("Uses actual value when variable is resolved, ignoring default")
+    func defaultFilterResolved() throws {
+        let ctx = makeContext(inputs: ["greeting": "Hi there"])
+        let result = try resolver.resolve(
+            template: "{{greeting | default: Hello, World!}}",
+            context: ctx
+        )
+        #expect(result == "Hi there")
+    }
+
+    @Test("Default filter with whitespace trimming")
+    func defaultFilterWhitespace() throws {
+        let ctx = makeContext()
+        let result = try resolver.resolve(
+            template: "{{ name | default: anonymous }}",
+            context: ctx
+        )
+        #expect(result == "anonymous")
+    }
+
+    @Test("Default filter with empty default value")
+    func defaultFilterEmpty() throws {
+        let ctx = makeContext()
+        let result = try resolver.resolve(
+            template: "{{missing | default: }}",
+            context: ctx
+        )
+        #expect(result == "")
+    }
 }

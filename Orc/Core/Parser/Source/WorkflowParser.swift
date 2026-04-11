@@ -526,7 +526,14 @@ struct WorkflowParser: WorkflowParsing, Sendable {
                     i += 1
                 }
 
-                let trimmed = varName.trimmingCharacters(in: .whitespaces)
+                var trimmed = varName.trimmingCharacters(in: .whitespaces)
+
+                // Strip "| default: <value>" filter before checking known names.
+                if let pipeIndex = trimmed.firstIndex(of: "|") {
+                    trimmed = trimmed[trimmed.startIndex..<pipeIndex]
+                        .trimmingCharacters(in: .whitespaces)
+                }
+
                 if !trimmed.isEmpty && !knownNames.contains(trimmed) {
                     unknowns.append(trimmed)
                 }
