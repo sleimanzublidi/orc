@@ -1,0 +1,17 @@
+# A simple hello-world workflow to verify your Orc setup.
+name: hello-shell
+description: Prints a greeting using shell to verify Orc is working.
+
+input:
+  - name: greeting
+    type: string
+    required: false
+
+nodes:
+  - id: greet
+    agent: shell
+    prompt: "echo '{{greeting | default: Hello, World!}}'"
+    output: result
+
+output:
+  message: "{{result}}"
