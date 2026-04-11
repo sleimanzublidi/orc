@@ -21,6 +21,7 @@ struct StartCommandTests {
             receivedMaxNodes = maxNodes
             return TestFixtures.makeRun(status: .completed)
         }
+        mock.getNodeExecutionsHandler = { _, _ in [] }
 
         let cmd = try StartCommand.parseAsRoot([
             "deploy.yaml",
@@ -45,6 +46,7 @@ struct StartCommandTests {
             receivedMaxNodes = maxNodes
             return TestFixtures.makeRun(status: .completed)
         }
+        mock.getNodeExecutionsHandler = { _, _ in [] }
 
         let cmd = try StartCommand.parseAsRoot(["simple.yaml"]) as! StartCommand
         try await cmd.execute(engine: mock)

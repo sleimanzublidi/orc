@@ -11,12 +11,26 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SOURCES_DIR="$REPO_ROOT/Orc"
 PREBUILD_DIR="$REPO_ROOT/PreBuild"
 
-# Read version from OrcVersion.swift
-VERSION=$(grep -oE '"[0-9]+\.[0-9]+\.[0-9]+[^"]*"' "$SOURCES_DIR/Core/Models/Source/OrcVersion.swift" | tr -d '"')
+# Read version from OrcInfo.swift
+ORC_INFO="$SOURCES_DIR/Core/Models/Source/OrcInfo.swift"
+VERSION=$(grep -oE '"[0-9]+\.[0-9]+\.[0-9]+[^"]*"' "$ORC_INFO" | head -1 | tr -d '"')
 if [ -z "$VERSION" ]; then
-    echo "Error: Could not read version from Core/Models/Source/OrcVersion.swift" >&2
+    echo "Error: Could not read version from $ORC_INFO" >&2
     exit 1
 fi
+
+# Inject git hash and build timestamp
+GIT_HASH=$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+BUILD_TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+sed -i '' "s|public static let githash = \".*\"|public static let githash = \"$GIT_HASH\"|" "$ORC_INFO"
+sed -i '' "s|public static let buildTimestamp = \".*\"|public static let buildTimestamp = \"$BUILD_TIMESTAMP\"|" "$ORC_INFO"
+
+# Restore OrcInfo on exit so working tree stays clean
+cleanup_orc_info() {
+    sed -i '' "s|public static let githash = \".*\"|public static let githash = \"\"|" "$ORC_INFO"
+    sed -i '' "s|public static let buildTimestamp = \".*\"|public static let buildTimestamp = \"\"|" "$ORC_INFO"
+}
+trap cleanup_orc_info EXIT
 
 mkdir -p "$PREBUILD_DIR"
 cd "$SOURCES_DIR"
@@ -58,7 +72,7 @@ else
 
     # Create universal binary
     STAGING=$(mktemp -d)
-    trap 'rm -rf "$STAGING"' EXIT
+    trap 'rm -rf "$STAGING"; cleanup_orc_info' EXIT
 
     ARCHIVE_NAME="orc-cli-${VERSION}"
     UNIVERSAL_BINARY="$STAGING/$ARCHIVE_NAME/bin/orc"

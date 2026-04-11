@@ -9,7 +9,7 @@ struct VersionCommand: AsyncParsableCommand {
     )
 
     func run() async throws {
-        print("orc \(OrcVersion.current)")
+        print("orc \(OrcInfo.formattedVersion)")
         #if swift(>=6.0)
         print("Swift 6.0+")
         #elseif swift(>=5.10)
