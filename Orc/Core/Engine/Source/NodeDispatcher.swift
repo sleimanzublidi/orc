@@ -117,6 +117,13 @@ struct NodeDispatcher: Sendable {
                 nodeStatuses[nodeID] = status
                 pendingNodes.remove(nodeID)
 
+                if status == .completed {
+                    logger.info("[\(nodeID)] completed")
+                } else if status == .failed {
+                    let detail = results.first(where: { $0.0 == nodeID })?.3?.localizedDescription ?? "unknown"
+                    logger.info("[\(nodeID)] failed: \(detail)")
+                }
+
                 if let output = output {
                     nodeOutputs[nodeID] = output
                     // Also store under the node's output alias if configured.
@@ -233,6 +240,8 @@ struct NodeDispatcher: Sendable {
             return (nodeID, .failed, nil, EngineError.dependencyFailed(nodeID: nodeID, upstream: "node not found"))
         }
 
+        logger.info("[\(nodeID)] running...")
+
         let context = TaskContext(
             inputs: inputs,
             outputs: nodeOutputs,
@@ -256,6 +265,7 @@ struct NodeDispatcher: Sendable {
                         completedAt: Date()
                     )
                     _ = try await store.createNodeExecution(exec)
+                    logger.info("[\(nodeID)] skipped (when: condition false)")
                     return (nodeID, .skipped, nil, nil)
                 }
             } catch {
