@@ -25,6 +25,12 @@ struct StartCommand: AsyncParsableCommand {
     @Flag(name: .long, help: "Enable verbose output (debug-level logging).")
     var verbose: Bool = false
 
+    @Flag(name: .long, help: "Send a macOS notification when the run completes.")
+    var notify: Bool = false
+
+    @Option(name: .long, help: "Shell command to execute when the run completes.")
+    var onComplete: String?
+
     @Argument(parsing: .allUnrecognized, help: .hidden)
     var rawInput: [String] = []
 
@@ -58,11 +64,15 @@ struct StartCommand: AsyncParsableCommand {
             )
 
             print("Running workflow \(resolvedFile)")
+            let startTime = Date()
             let run = try await engine.start(
                 workflowFile: resolvedFile,
                 inputs: inputs,
                 maxParallelNodes: maxParallelNodes
             )
+            let elapsedSeconds = Date().timeIntervalSince(startTime)
+
+            defer { runCompletionHooks(run: run, elapsedSeconds: elapsedSeconds) }
 
             print("Workflow run \(run.id) \(Format.statusIndicator(run.status))")
             if run.status == .failed {
@@ -199,5 +209,62 @@ extension StartCommand {
         }
 
         return result
+    }
+}
+
+// MARK: - Completion Hooks
+
+extension StartCommand {
+
+    /// Builds the AppleScript for a macOS notification.
+    static func notificationScript(run: Run, elapsedSeconds: Double) -> String {
+        let title = run.status == .completed ? "Orc \u{2014} Completed" : "Orc \u{2014} Failed"
+        let body = "Run \(run.id) \(run.status.rawValue) in \(Format.duration(elapsedSeconds))"
+        let escapedBody = body.replacingOccurrences(of: "\"", with: "\\\"")
+        let escapedTitle = title.replacingOccurrences(of: "\"", with: "\\\"")
+        return "display notification \"\(escapedBody)\" with title \"\(escapedTitle)\""
+    }
+
+    /// Builds the environment dictionary for an on-complete hook command.
+    static func completionEnvironment(run: Run, elapsedSeconds: Double) -> [String: String] {
+        [
+            "ORC_RUN_ID": run.id,
+            "ORC_STATUS": run.status.rawValue,
+            "ORC_ELAPSED_SECONDS": String(Int(elapsedSeconds)),
+            "ORC_WORKFLOW_NAME": run.workflowName,
+        ]
+    }
+
+    private func runCompletionHooks(run: Run, elapsedSeconds: Double) {
+        if notify {
+            let script = Self.notificationScript(run: run, elapsedSeconds: elapsedSeconds)
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+            process.arguments = ["-e", script]
+            do {
+                try process.run()
+                process.waitUntilExit()
+            } catch {
+                Format.printError("Warning: Failed to send notification: \(error)")
+            }
+        }
+
+        if let command = onComplete {
+            let env = Self.completionEnvironment(run: run, elapsedSeconds: elapsedSeconds)
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/bin/sh")
+            process.arguments = ["-c", command]
+            var processEnv = ProcessInfo.processInfo.environment
+            for (key, value) in env {
+                processEnv[key] = value
+            }
+            process.environment = processEnv
+            do {
+                try process.run()
+                process.waitUntilExit()
+            } catch {
+                Format.printError("Warning: Failed to run on-complete command: \(error)")
+            }
+        }
     }
 }
