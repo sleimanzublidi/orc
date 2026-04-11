@@ -46,6 +46,8 @@ nodes:
 
       Read previous idea files in `{{workspace}}/self-improve/` and `git log main..HEAD --oneline` to see what was already proposed or implemented — do NOT re-propose those ideas.
 
+      Read the Roadmap section in README.md. Do NOT propose ideas that are already listed there — those are already planned.
+
       Produce a top 3 ranked product ideas or suggestions. Focus on:
       - User experience improvements
       - Missing features that would make the product more useful
@@ -85,6 +87,8 @@ nodes:
       {{codebase_summary}}
 
       Read previous idea files in `{{workspace}}/self-improve/` and `git log main..HEAD --oneline` to see what was already proposed or implemented — do NOT re-propose those ideas.
+
+      Read the Roadmap section in README.md. Do NOT propose ideas that are already listed there — those are already planned.
 
        Produce a top 3 ranked engineering ideas about architecture and technical implementation. Focus on:
       - Architectural improvements (module boundaries, dependency flow, protocol design)
