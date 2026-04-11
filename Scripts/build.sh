@@ -23,7 +23,7 @@ cd "$SOURCES_DIR"
 
 if [[ "$CONFIG" == "debug" ]]; then
     echo "Building orc v${VERSION} (debug, host arch)..."
-    xcrun swift build -c debug
+    swift build -c debug
 
     BINARY="$SOURCES_DIR/.build/debug/orc"
     if [ ! -f "$BINARY" ]; then
@@ -40,11 +40,11 @@ else
 
     # Build arm64
     echo "  Building arm64..."
-    xcrun swift build -c release --arch arm64
+    swift build -c release --arch arm64
 
     # Build x86_64
     echo "  Building x86_64..."
-    xcrun swift build -c release --arch x86_64
+    swift build -c release --arch x86_64
 
     ARM64_BINARY="$SOURCES_DIR/.build/arm64-apple-macosx/release/orc"
     X86_BINARY="$SOURCES_DIR/.build/x86_64-apple-macosx/release/orc"
