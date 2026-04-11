@@ -85,34 +85,47 @@ struct ProcessRunner: ProcessRunning, Sendable {
             process.standardError = handle
         }
 
-        try process.run()
-
         // Thread-safe flag so we can distinguish "our timeout killed it"
         // from "the process happened to exit with a signal-like code."
         let timedOut = TimeoutFlag()
 
         return try await withTaskCancellationHandler {
-            // Start timeout timer if configured.
-            let timeoutTask: Task<Void, Never>? = timeout.map { seconds in
-                Task.detached {
-                    try? await Task.sleep(nanoseconds: UInt64(seconds) * 1_000_000_000)
-                    if process.isRunning {
-                        timedOut.set()
-                        self.terminateGracefully(process)
+            // Set terminationHandler BEFORE run() to eliminate the race where
+            // the process exits before the handler is installed. Foundation's
+            // dispatch source checks terminationHandler exactly once on exit —
+            // if it's nil at that moment, the callback is lost and the
+            // continuation never resumes.
+            var timeoutTask: Task<Void, Never>?
+
+            let exitStatus = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, any Error>) in
+                process.terminationHandler = { proc in
+                    continuation.resume(returning: proc.terminationStatus)
+                }
+                do {
+                    try process.run()
+                } catch {
+                    process.terminationHandler = nil
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                // Start timeout timer after successful process launch.
+                timeoutTask = timeout.map { seconds in
+                    Task.detached {
+                        try? await Task.sleep(nanoseconds: UInt64(seconds) * 1_000_000_000)
+                        if process.isRunning {
+                            timedOut.set()
+                            self.terminateGracefully(process)
+                        }
                     }
                 }
             }
 
-            // Wait for process exit in a detached task so we don't block the
-            // cooperative thread pool with the synchronous waitUntilExit call.
-            let result = await Task.detached {
-                process.waitUntilExit()
-                return ProcessResult(
-                    exitCode: process.terminationStatus,
-                    stdoutPath: resolvedStdoutPath,
-                    stderrPath: resolvedStderrPath
-                )
-            }.value
+            let result = ProcessResult(
+                exitCode: exitStatus,
+                stdoutPath: resolvedStdoutPath,
+                stderrPath: resolvedStderrPath
+            )
 
             timeoutTask?.cancel()
 
