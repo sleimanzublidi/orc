@@ -45,4 +45,5 @@ PreBuild/debug*
 CLAUDE.local.md
 
 # Orc
-.orc/
+.orc/*
+!.orc/workflows/
