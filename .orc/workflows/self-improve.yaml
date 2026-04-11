@@ -12,8 +12,8 @@ nodes:
       DATE=$(date +%Y-%m-%d)
       BRANCH="self-improve/$DATE"
       git checkout -b "$BRANCH" 2>/dev/null || git checkout "$BRANCH"
-      mkdir -p .orc/self-improve
-      LAST=$(ls .orc/self-improve/*-${DATE}-*.md 2>/dev/null | sed 's/.*-\([0-9]*\)\.md/\1/' | sort -n | tail -1)
+      mkdir -p {{workspace}}/self-improve
+      LAST=$(ls {{workspace}}/self-improve/*-${DATE}-*.md 2>/dev/null | sed 's/.*-\([0-9]*\)\.md/\1/' | sort -n | tail -1)
       ITERATION=$(( ${LAST:-0} + 1 ))
       echo "${DATE}:${ITERATION}"
     output: run_info
@@ -44,7 +44,7 @@ nodes:
 
       {{codebase_summary}}
 
-      Read previous idea files in `.orc/self-improve/` and `git log main..HEAD --oneline` to see what was already proposed or implemented — do NOT re-propose those ideas.
+      Read previous idea files in `{{workspace}}/self-improve/` and `git log main..HEAD --oneline` to see what was already proposed or implemented — do NOT re-propose those ideas.
 
       Produce a top 3 ranked product ideas or suggestions. Focus on:
       - User experience improvements
@@ -69,7 +69,7 @@ nodes:
       ```
 
       Parse the run info "{{run_info}}" as DATE:ITERATION (split on colon).
-      Save the file to `.orc/self-improve/product-ideas-<DATE>-<ITERATION>.md`.
+      Save the file to `{{workspace}}/self-improve/product-ideas-<DATE>-<ITERATION>.md`.
 
       Output the full path of the saved file.
     output: product_ideas_file
@@ -84,7 +84,7 @@ nodes:
 
       {{codebase_summary}}
 
-      Read previous idea files in `.orc/self-improve/` and `git log main..HEAD --oneline` to see what was already proposed or implemented — do NOT re-propose those ideas.
+      Read previous idea files in `{{workspace}}/self-improve/` and `git log main..HEAD --oneline` to see what was already proposed or implemented — do NOT re-propose those ideas.
 
        Produce a top 3 ranked engineering ideas about architecture and technical implementation. Focus on:
       - Architectural improvements (module boundaries, dependency flow, protocol design)
@@ -109,7 +109,7 @@ nodes:
       ```
 
       Parse the run info "{{run_info}}" as DATE:ITERATION (split on colon).
-      Save the file to `.orc/self-improve/engineer-ideas-<DATE>-<ITERATION>.md`.
+      Save the file to `{{workspace}}/self-improve/engineer-ideas-<DATE>-<ITERATION>.md`.
 
       Output the full path of the saved file.
     output: engineer_ideas_file
@@ -160,7 +160,7 @@ nodes:
       ```
 
       Parse the run info "{{run_info}}" as DATE:ITERATION (split on colon).
-      Save the file to `.orc/self-improve/tasks-<DATE>-<ITERATION>.md`.
+      Save the file to `{{workspace}}/self-improve/tasks-<DATE>-<ITERATION>.md`.
 
       Output the full path of the saved file.
     output: tasks_file
