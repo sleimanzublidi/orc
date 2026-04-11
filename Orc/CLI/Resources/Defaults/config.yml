@@ -8,6 +8,9 @@ storage:
   retention_days: 30
   retention_policy: completed_only
 
+output:
+  verbose: false                   # set to true for debug-level logging
+
 providers:
   claude-code:
     path: /usr/local/bin/claude    # path to the claude CLI binary
