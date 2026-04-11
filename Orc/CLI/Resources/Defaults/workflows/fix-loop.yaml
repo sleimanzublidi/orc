@@ -1,29 +1,33 @@
-# Unsupervised code review loop — reviews code/docs, fixes issues, repeats until clean.
+# Iterative code review loop — reviews changes, fixes issues, repeats until clean.
+#
+# Each loop iteration: review the diff, fix any findings, output verdict.
+# Stops when APPROVED or after 3 iterations.
 #
 # Usage:
-#   orc start code-review-unsupervised
+#   orc start fix-loop
 name: fix-loop
-description: Iterative code and doc review and fix loop that reviews changes, fixes issues, and repeats until no issues remain or 10 iterations.
+description: Iterative code review and fix loop that reviews changes, fixes issues, and repeats until no issues remain or 3 iterations.
 
 nodes:
-  - id: review
+  - id: review-fix
     agent: claude-code
     prompt: |
-      You are a senior code reviewer. Conduct a thorough code and documentation review.
+      You are a senior engineer who reviews code and fixes issues in one pass.
 
       Follow these steps exactly:
 
+      **REVIEW PHASE**
+
       1. **Prepare**:
-         - Read CLAUDE.md and CONTRIBUTING.md (if they exist) for conventions and requirements. Only read deeper docs (e.g., specs, architecture docs) if the changes touch areas they govern.
-         - Read `.orc/reviews/known-issues.json` if it exists. Issues listed there have been previously triaged and intentionally accepted — do NOT re-flag them.
+         - Read CLAUDE.md and CONTRIBUTING.md (if they exist) for conventions and requirements.
+         - Read `.orc/reviews/known-issues.md` if it exists. Issues listed there have been previously triaged and intentionally accepted — do NOT re-flag them.
+         - Read all existing `iteration-*.md` files in `.orc/reviews/` to understand what was found and fixed in prior iterations. Focus on verifying prior fixes and finding new issues — do NOT re-flag issues that were already fixed.
 
       2. **Gather changes**:
-         Run `git branch --show-current` to determine the branch, then:
-         - `git diff` and `git diff --cached` for unstaged/staged changes.
-         - `git log origin/main..HEAD -p` for unpushed commits (if that fails, use `git log -10 -p`).
-         - If on a feature branch, use `git log main..HEAD -p` instead.
+         - If prior iteration reports exist in `.orc/reviews/`, focus on recent fixes: use `git diff HEAD~1` for the last fix commit. Also check any unresolved findings from prior reports.
+         - If no prior iteration reports exist, review the full branch diff: `git diff main..HEAD` and `git log main..HEAD --oneline`.
 
-      3. **Review**: Analyze every change for:
+      3. **Review**: Analyze changes for:
          - Correctness — logic bugs, off-by-one, nil/null safety, concurrency issues
          - Spec compliance — validate against repo docs/requirements
          - Code conventions — naming, structure, patterns per repo guidelines
@@ -31,16 +35,18 @@ nodes:
          - Security — injection, unsafe operations, credential exposure
          - Test coverage — are new code paths tested?
 
-         Exclude any finding that matches an entry in `known-issues.json`.
+         Report only P0 and P1 findings. Do not report style suggestions or nice-to-haves.
+         Exclude any finding that matches an entry in `known-issues.md`.
 
-      4. **Save report**: Determine the iteration number by counting existing `review-iteration-*.md` files in `.orc/reviews/` (first run = 1). Create `.orc/reviews/` if needed. Write the report to `.orc/reviews/review-iteration-(N).md`:
+         Priorities: **P0** must fix (bugs, security, spec violations) · **P1** should fix (conventions, tests, docs)
+
+      4. **If zero findings**, save the report (step 5) and output ONLY `APPROVED`. Do NOT proceed to the fix phase.
+
+      5. **Save report**: Record the start timestamp with `date '+%Y%m%d-%H%M%S'`. Determine the iteration number by counting existing `iteration-*.md` files in `.orc/reviews/` (first run = 1). Create `.orc/reviews/` if needed. Write to `.orc/reviews/iteration-<TIMESTAMP>-<N>.md`:
 
          ```
-         # Code Review — Iteration N
+         # Review & Fix — Iteration N
          **Branch:** (name) | **Timestamp:** (date/time)
-
-         ## Summary
-         (1-2 sentences)
 
          ## Findings
          ### [P0] <title>
@@ -48,114 +54,45 @@ nodes:
          - **Category**: bug | spec-violation | convention | security | docs | test-gap
          - **Issue**: what's wrong
          - **Fix**: how to fix
+         - **Status**: Fixed | Skipped
+         - **Action**: (what changed, or why skipped)
 
-         (repeat for P1, P2)
+         (repeat for each finding)
+
+         ## Build Verification
+         (pass/fail — filled after fix phase, or N/A if APPROVED)
 
          ## Verdict
-         CLEAN — no actionable findings | NEEDS_WORK — N issues (X P0, Y P1, Z P2)
+         APPROVED | NEEDS_WORK (N findings: X fixed, Y skipped)
          ```
 
-         Priorities: **P0** must fix (bugs, security, spec violations) · **P1** should fix (conventions, tests, docs) · **P2** nice to have (style, suggestions)
+      **FIX PHASE** (only if there are findings)
 
-      5. **Final output**: Output ONLY `APPROVED` if zero P0 and P1 findings. Otherwise output `NEEDS_WORK`.
+      6. **Triage findings**: For each finding, decide:
+         - **Address**: the finding is valid per repo guidelines
+         - **Skip**: the finding conflicts with repo docs, is already correct, or is a false positive
+
+      7. **Fix by priority**: Address P0 first, then P1.
+         - Verify fixes don't introduce regressions — build and run tests.
+
+      8. **Record known issues**: For any finding marked as **Skip**, append a line to `.orc/reviews/known-issues.md`. Create the file if it doesn't exist. Format — one finding per line:
+
+         ```
+         - <short-id>: <title> — <reason> (path/to/file, YYYY-MM-DD)
+         ```
+
+         If the file already exists, read it first and avoid duplicates (match by short-id).
+
+      9. **Update the report**: Fill in the Status, Action, and Build Verification fields in the report file saved in step 5.
+
+      10. **Commit**: Stage ALL modified files (code + reports + known-issues.md) and commit with message: `[Claude] Address code review iteration (N) findings`.
+
+      11. **Output**: Output `NEEDS_WORK`.
     output: review_result
     loop:
       until: approved
-      max_iterations: 10
+      max_iterations: 3
       fresh_context: true
-      prompt: |
-        You are a senior code reviewer conducting another iteration of a review cycle.
-
-        The previous iteration found issues and a fixer agent addressed them. Now re-review.
-
-        Follow these steps exactly:
-
-        1. **Prepare**:
-           - Read CLAUDE.md and CONTRIBUTING.md (if they exist) for conventions.
-           - Read `.orc/reviews/known-issues.json` if it exists — do NOT re-flag issues listed there.
-           - Read all files in `.orc/reviews/` to understand what was found and fixed in prior iterations — focus on the most recent fix report.
-
-        2. **Gather changes**:
-           Run `git branch --show-current`, then:
-           - `git diff` and `git diff --cached` for unstaged/staged changes.
-           - `git log origin/main..HEAD -p` for unpushed commits (if that fails, use `git log -10 -p`).
-           - If on a feature branch, use `git log main..HEAD -p` instead.
-
-        3. **Review**: Analyze every change with fresh eyes — do NOT just re-check previous findings. Look for:
-           - Correctness, spec compliance, conventions, documentation, security, test coverage
-           - Regressions introduced by previous fixes
-           - Issues missed in earlier iterations
-
-           Exclude any finding that matches an entry in `known-issues.json`.
-
-        4. **Save report**: Determine iteration number from existing `review-iteration-*.md` files in `.orc/reviews/`. Write to `.orc/reviews/review-iteration-(N).md` using the same format as prior reports.
-
-        5. **Final output**: Output ONLY `APPROVED` if zero P0 and P1 findings. Otherwise output `NEEDS_WORK`.
-
-  - id: fix
-    agent: claude-code
-    depends_on: review
-    when: "{{review_result}} != 'APPROVED'"
-    prompt: |
-      You are a senior engineer addressing code review feedback without any user interaction.
-
-      Follow these steps exactly:
-
-      1. **Read the review report**: Find the latest `review-iteration-*.md` in `.orc/reviews/`. Parse all findings.
-
-      2. **Read repo guidelines**: Read CLAUDE.md and CONTRIBUTING.md (if they exist) to understand conventions before making changes. Only read deeper docs if findings reference them.
-
-      3. **Triage findings**: For each finding, decide:
-         - **Address**: the finding is valid per repo guidelines
-         - **Skip**: the finding conflicts with repo docs, is already correct, or is a false positive
-         Document your reasoning for skipped items.
-
-      4. **Fix by priority**: Address P0 first, then P1, then P2.
-         - Do NOT commit to git yet.
-         - Verify fixes don't introduce regressions — build and run tests.
-
-      5. **Record known issues**: For any finding marked as **Skip**, append it to `.orc/reviews/known-issues.json`. Create the file if it doesn't exist. Schema:
-
-         ```json
-         [
-           {
-             "id": "short-kebab-id",
-             "title": "finding title from the review report",
-             "file": "path/to/file",
-             "reason": "why this was skipped",
-             "added": "YYYY-MM-DD"
-           }
-         ]
-         ```
-
-         If the file already exists, read it first, append new entries, and avoid duplicates (match by `id`).
-
-      6. **Save fix report**: Use the same iteration number as the review report. Write to `.orc/reviews/fixes-iteration-(N).md`:
-
-         ```
-         # Fix Report — Iteration N
-         **Timestamp:** (date/time)
-
-         ## Findings Addressed
-         ### [P0] <title>
-         - **Status**: Fixed | Skipped
-         - **Action**: (what changed, or why skipped)
-         - **Files**: path/to/file
-
-         (repeat for P1, P2)
-
-         ## Build Verification
-         (pass/fail)
-
-         ## Summary
-         Addressed: N · Skipped: M · Total: N+M
-         ```
-
-      7. **Commit**: Stage ALL modified files (code + reports + known-issues.json) and commit with message: `[Claude] Address code review iteration (N) findings`.
-
-      8. **Output**: Output `FIXES_APPLIED` when done.
-    output: fix_result
 
 output:
   review: "{{review_result}}"
-  fixes: "{{fix_result}}"
