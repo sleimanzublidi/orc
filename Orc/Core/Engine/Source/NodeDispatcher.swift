@@ -83,6 +83,9 @@ struct NodeDispatcher: Sendable {
             let batchSize = min(readyNodes.count, maxParallelNodes)
             let batch = Array(readyNodes.sorted().prefix(batchSize))
 
+            let nodeList = batch.joined(separator: ", ")
+            logger.debug("batch: [\(nodeList)]")
+
             // Snapshot mutable state before entering the task group so the
             // closure captures immutable copies (required by strict concurrency).
             let snapshotOutputs = nodeOutputs
@@ -358,6 +361,9 @@ struct NodeDispatcher: Sendable {
         var lastError: (any Error)?
 
         for attempt in 1...maxAttempts {
+            if attempt > 1 {
+                logger.debug("[\(node.id)] retry \(attempt)/\(maxAttempts)...")
+            }
             do {
                 let provider = try providers.provider(named: agentName)
                 let output = try await provider.execute(prompt: resolvedPrompt, context: context, timeout: node.timeoutSeconds)
@@ -372,6 +378,7 @@ struct NodeDispatcher: Sendable {
                 return (node.id, .completed, output.output, nil)
             } catch {
                 lastError = error
+                logger.debug("[\(node.id)] attempt \(attempt)/\(maxAttempts) failed: \(error.localizedDescription)")
                 if attempt < maxAttempts {
                     if let delay = node.retry?.delaySeconds, delay > 0 {
                         try? await Task.sleep(nanoseconds: UInt64(delay) * 1_000_000_000)
@@ -559,6 +566,8 @@ struct NodeDispatcher: Sendable {
         )
         _ = try? await store.createNodeExecution(exec)
 
+        logger.debug("nested workflow: \(workflowFile)")
+
         // 1. Parse the child workflow YAML.
         let childWorkflow: Workflow
         do {
@@ -716,6 +725,7 @@ struct NodeDispatcher: Sendable {
 
         // 8. If the child failed, the parent node fails.
         if childResult.status == .failed {
+            logger.debug("nested workflow: \(workflowFile) failed")
             try? await store.updateNodeExecution(
                 id: execID,
                 status: .failed,
@@ -753,6 +763,7 @@ struct NodeDispatcher: Sendable {
             error: nil
         )
 
+        logger.debug("nested workflow: \(workflowFile) completed")
         return (node.id, .completed, childOutput, nil)
     }
 
