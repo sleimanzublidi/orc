@@ -1,4 +1,5 @@
 import Foundation
+import Logging
 import Models
 import Yams
 
@@ -11,6 +12,8 @@ import Yams
 public struct ConfigManager: Sendable {
     /// Path to the `.orc` directory.
     let basePath: String
+
+    private let logger = Logger(label: "orc.engine.config")
 
     public init(basePath: String) {
         self.basePath = basePath
@@ -121,8 +124,15 @@ public struct ConfigManager: Sendable {
     /// - `providers:` section with per-provider configuration dictionaries
     private func parseConfig(from yaml: String) -> OrcConfig {
         // Attempt structured Yams parsing for nested YAML support.
-        guard let parsed = try? Yams.load(yaml: yaml) as? [String: Any] else {
-            // Fallback: if Yams parsing fails, return defaults.
+        let parsed: [String: Any]
+        do {
+            guard let result = try Yams.load(yaml: yaml) as? [String: Any] else {
+                logger.warning("Config YAML is not a dictionary, using defaults")
+                return OrcConfig.default
+            }
+            parsed = result
+        } catch {
+            logger.warning("Failed to parse config YAML, using defaults: \(error)")
             return OrcConfig.default
         }
 
@@ -218,12 +228,20 @@ public struct ConfigManager: Sendable {
         guard fm.fileExists(atPath: path),
               let data = fm.contents(atPath: path),
               let contents = String(data: data, encoding: .utf8),
-              !contents.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              let parsed = try? Yams.load(yaml: contents) as? [String: Any]
+              !contents.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else {
             return [:]
         }
-        return parsed
+        do {
+            guard let parsed = try Yams.load(yaml: contents) as? [String: Any] else {
+                logger.warning("YAML at \(path) is not a dictionary, using empty dictionary")
+                return [:]
+            }
+            return parsed
+        } catch {
+            logger.warning("Failed to parse YAML at \(path), using empty dictionary: \(error)")
+            return [:]
+        }
     }
 
     /// Serializes a dictionary back to YAML text.

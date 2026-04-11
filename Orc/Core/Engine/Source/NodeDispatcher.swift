@@ -161,7 +161,11 @@ struct NodeDispatcher: Sendable {
                                 startedAt: Date(),
                                 completedAt: Date()
                             )
-                            _ = try? await store.createNodeExecution(exec)
+                            do {
+                                _ = try await store.createNodeExecution(exec)
+                            } catch {
+                                logger.warning("[\(remaining)] Failed to persist cancelled execution: \(error)")
+                            }
                         }
                         pendingNodes.removeAll()
 
@@ -346,7 +350,11 @@ struct NodeDispatcher: Sendable {
                 startedAt: Date(),
                 completedAt: Date()
             )
-            _ = try? await store.createNodeExecution(exec)
+            do {
+                _ = try await store.createNodeExecution(exec)
+            } catch {
+                logger.warning("[\(node.id)] Failed to persist failed execution: \(error)")
+            }
             return (node.id, .failed, nil, error)
         }
 
@@ -359,7 +367,11 @@ struct NodeDispatcher: Sendable {
             prompt: resolvedPrompt,
             startedAt: Date()
         )
-        _ = try? await store.createNodeExecution(exec)
+        do {
+            _ = try await store.createNodeExecution(exec)
+        } catch {
+            logger.warning("[\(node.id)] Failed to persist running execution: \(error)")
+        }
 
         // Execute with retry support.
         let maxAttempts = node.retry?.maxAttempts ?? 1
@@ -393,12 +405,16 @@ struct NodeDispatcher: Sendable {
         }
 
         // All attempts exhausted.
-        try? await store.updateNodeExecution(
-            id: execID,
-            status: .failed,
-            output: nil,
-            error: lastError?.localizedDescription
-        )
+        do {
+            try await store.updateNodeExecution(
+                id: execID,
+                status: .failed,
+                output: nil,
+                error: lastError?.localizedDescription
+            )
+        } catch {
+            logger.warning("[\(node.id)] Failed to persist failure status: \(error)")
+        }
 
         return (node.id, .failed, nil, lastError)
     }
@@ -440,7 +456,11 @@ struct NodeDispatcher: Sendable {
             tmuxSession: sessionName,
             startedAt: Date()
         )
-        _ = try? await store.createNodeExecution(exec)
+        do {
+            _ = try await store.createNodeExecution(exec)
+        } catch {
+            logger.warning("[\(node.id)] Failed to persist interactive execution: \(error)")
+        }
 
         switch interactive {
         case .session:
@@ -473,12 +493,16 @@ struct NodeDispatcher: Sendable {
             }
 
             // All retry attempts exhausted.
-            try? await store.updateNodeExecution(
-                id: execID,
-                status: .failed,
-                output: nil,
-                error: lastError?.localizedDescription
-            )
+            do {
+                try await store.updateNodeExecution(
+                    id: execID,
+                    status: .failed,
+                    output: nil,
+                    error: lastError?.localizedDescription
+                )
+            } catch {
+                logger.warning("[\(node.id)] Failed to persist session failure status: \(error)")
+            }
             return (node.id, .failed, nil, lastError)
 
         case .prompt:
@@ -490,12 +514,16 @@ struct NodeDispatcher: Sendable {
                 // run will be set to awaiting_input status.
                 return (node.id, .awaitingInput, nil, nil)
             } catch {
-                try? await store.updateNodeExecution(
-                    id: execID,
-                    status: .failed,
-                    output: nil,
-                    error: error.localizedDescription
-                )
+                do {
+                    try await store.updateNodeExecution(
+                        id: execID,
+                        status: .failed,
+                        output: nil,
+                        error: error.localizedDescription
+                    )
+                } catch let storeError {
+                    logger.warning("[\(node.id)] Failed to persist prompt failure status: \(storeError)")
+                }
                 return (node.id, .failed, nil, error)
             }
         }
@@ -569,7 +597,11 @@ struct NodeDispatcher: Sendable {
             agent: "nested-workflow",
             startedAt: Date()
         )
-        _ = try? await store.createNodeExecution(exec)
+        do {
+            _ = try await store.createNodeExecution(exec)
+        } catch {
+            logger.warning("[\(node.id)] Failed to persist nested workflow execution: \(error)")
+        }
 
         logger.debug("nested workflow: \(workflowFile)")
 
@@ -578,12 +610,16 @@ struct NodeDispatcher: Sendable {
         do {
             childWorkflow = try parser.parse(file: workflowFile)
         } catch {
-            try? await store.updateNodeExecution(
-                id: execID,
-                status: .failed,
-                output: nil,
-                error: "Failed to parse child workflow '\(workflowFile)': \(error)"
-            )
+            do {
+                try await store.updateNodeExecution(
+                    id: execID,
+                    status: .failed,
+                    output: nil,
+                    error: "Failed to parse child workflow '\(workflowFile)': \(error)"
+                )
+            } catch let storeError {
+                logger.warning("[\(node.id)] Failed to persist parse failure: \(storeError)")
+            }
             return (node.id, .failed, nil, EngineError.nestedWorkflowFailed(
                 nodeID: node.id, workflowFile: workflowFile,
                 detail: "Parse failed: \(error)"
@@ -599,12 +635,16 @@ struct NodeDispatcher: Sendable {
                     let resolved = try templateResolver.resolve(template: template, context: context)
                     childInputs[key] = resolved
                 } catch {
-                    try? await store.updateNodeExecution(
-                        id: execID,
-                        status: .failed,
-                        output: nil,
-                        error: "Failed to resolve input '\(key)': \(error)"
-                    )
+                    do {
+                        try await store.updateNodeExecution(
+                            id: execID,
+                            status: .failed,
+                            output: nil,
+                            error: "Failed to resolve input '\(key)': \(error)"
+                        )
+                    } catch let storeError {
+                        logger.warning("[\(node.id)] Failed to persist input resolution failure: \(storeError)")
+                    }
                     return (node.id, .failed, nil, EngineError.nestedWorkflowFailed(
                         nodeID: node.id, workflowFile: workflowFile,
                         detail: "Input resolution failed for '\(key)': \(error)"
@@ -636,12 +676,16 @@ struct NodeDispatcher: Sendable {
                     withIntermediateDirectories: true
                 )
             } catch {
-                try? await store.updateNodeExecution(
-                    id: execID,
-                    status: .failed,
-                    output: nil,
-                    error: "Failed to create isolated workspace: \(error)"
-                )
+                do {
+                    try await store.updateNodeExecution(
+                        id: execID,
+                        status: .failed,
+                        output: nil,
+                        error: "Failed to create isolated workspace: \(error)"
+                    )
+                } catch let storeError {
+                    logger.warning("[\(node.id)] Failed to persist workspace creation failure: \(storeError)")
+                }
                 return (node.id, .failed, nil, EngineError.nestedWorkflowFailed(
                     nodeID: node.id, workflowFile: workflowFile,
                     detail: "Workspace creation failed: \(error)"
@@ -655,12 +699,16 @@ struct NodeDispatcher: Sendable {
             let planner = ExecutionPlanner()
             childPlan = try planner.plan(workflow: childWorkflow)
         } catch {
-            try? await store.updateNodeExecution(
-                id: execID,
-                status: .failed,
-                output: nil,
-                error: "Failed to plan child workflow: \(error)"
-            )
+            do {
+                try await store.updateNodeExecution(
+                    id: execID,
+                    status: .failed,
+                    output: nil,
+                    error: "Failed to plan child workflow: \(error)"
+                )
+            } catch let storeError {
+                logger.warning("[\(node.id)] Failed to persist planning failure: \(storeError)")
+            }
             return (node.id, .failed, nil, EngineError.nestedWorkflowFailed(
                 nodeID: node.id, workflowFile: workflowFile,
                 detail: "Planning failed: \(error)"
@@ -681,12 +729,16 @@ struct NodeDispatcher: Sendable {
         do {
             childRun = try await store.createRun(childRunTemplate)
         } catch {
-            try? await store.updateNodeExecution(
-                id: execID,
-                status: .failed,
-                output: nil,
-                error: "Failed to create child run: \(error)"
-            )
+            do {
+                try await store.updateNodeExecution(
+                    id: execID,
+                    status: .failed,
+                    output: nil,
+                    error: "Failed to create child run: \(error)"
+                )
+            } catch let storeError {
+                logger.warning("[\(node.id)] Failed to persist run creation failure: \(storeError)")
+            }
             return (node.id, .failed, nil, EngineError.nestedWorkflowFailed(
                 nodeID: node.id, workflowFile: workflowFile,
                 detail: "Run creation failed: \(error)"
@@ -717,12 +769,16 @@ struct NodeDispatcher: Sendable {
                 inputs: childInputs
             )
         } catch {
-            try? await store.updateNodeExecution(
-                id: execID,
-                status: .failed,
-                output: nil,
-                error: "Child workflow execution failed: \(error)"
-            )
+            do {
+                try await store.updateNodeExecution(
+                    id: execID,
+                    status: .failed,
+                    output: nil,
+                    error: "Child workflow execution failed: \(error)"
+                )
+            } catch let storeError {
+                logger.warning("[\(node.id)] Failed to persist child execution failure: \(storeError)")
+            }
             return (node.id, .failed, nil, EngineError.nestedWorkflowFailed(
                 nodeID: node.id, workflowFile: workflowFile,
                 detail: "Execution failed: \(error)"
@@ -732,12 +788,16 @@ struct NodeDispatcher: Sendable {
         // 8. If the child failed, the parent node fails.
         if childResult.status == .failed {
             logger.debug("nested workflow: \(workflowFile) failed")
-            try? await store.updateNodeExecution(
-                id: execID,
-                status: .failed,
-                output: nil,
-                error: "Child workflow completed with status: failed"
-            )
+            do {
+                try await store.updateNodeExecution(
+                    id: execID,
+                    status: .failed,
+                    output: nil,
+                    error: "Child workflow completed with status: failed"
+                )
+            } catch {
+                logger.warning("[\(node.id)] Failed to persist child workflow failure: \(error)")
+            }
             return (node.id, .failed, nil, EngineError.nestedWorkflowFailed(
                 nodeID: node.id, workflowFile: workflowFile,
                 detail: "Child workflow failed"
@@ -751,9 +811,15 @@ struct NodeDispatcher: Sendable {
             childOutput = runOutput
         } else {
             // Attempt to find the last completed node's output from child executions.
-            let childExecs = (try? await store.getNodeExecutions(
-                runID: childRun.id, nodeID: nil
-            )) ?? []
+            let childExecs: [NodeExecution]
+            do {
+                childExecs = try await store.getNodeExecutions(
+                    runID: childRun.id, nodeID: nil
+                )
+            } catch {
+                logger.warning("[\(node.id)] Failed to fetch child executions: \(error)")
+                childExecs = []
+            }
             let lastCompleted = childExecs
                 .filter { $0.status == .completed && $0.output != nil }
                 .sorted { ($0.completedAt ?? .distantPast) < ($1.completedAt ?? .distantPast) }
@@ -762,12 +828,16 @@ struct NodeDispatcher: Sendable {
         }
 
         // 10. Record success on the parent node's execution.
-        try? await store.updateNodeExecution(
-            id: execID,
-            status: .completed,
-            output: childOutput,
-            error: nil
-        )
+        do {
+            try await store.updateNodeExecution(
+                id: execID,
+                status: .completed,
+                output: childOutput,
+                error: nil
+            )
+        } catch {
+            logger.warning("[\(node.id)] Failed to persist nested workflow success: \(error)")
+        }
 
         logger.debug("nested workflow: \(workflowFile) completed")
         return (node.id, .completed, childOutput, nil)
