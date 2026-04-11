@@ -42,3 +42,7 @@ PreBuild/debug*
 
 # Claude
 .claude/scheduled_tasks.lock
+CLAUDE.local.md
+
+# Orc
+.orc/
