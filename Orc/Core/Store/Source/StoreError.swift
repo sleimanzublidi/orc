@@ -1,3 +1,5 @@
+import Foundation
+
 /// Errors specific to the Store persistence layer.
 public enum StoreError: Error, Sendable, Equatable {
     case databaseNotFound(path: String)
@@ -22,4 +24,8 @@ extension StoreError: CustomStringConvertible {
             return "Internal store error: \(detail)"
         }
     }
+}
+
+extension StoreError: LocalizedError {
+    public var errorDescription: String? { description }
 }

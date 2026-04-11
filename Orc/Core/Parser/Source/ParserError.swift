@@ -1,3 +1,4 @@
+import Foundation
 import Models
 
 /// Errors raised during YAML workflow parsing and structural validation.
@@ -53,4 +54,8 @@ extension ParserError: CustomStringConvertible {
             }.joined(separator: "\n")
         }
     }
+}
+
+extension ParserError: LocalizedError {
+    public var errorDescription: String? { description }
 }

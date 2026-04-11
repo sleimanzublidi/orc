@@ -1,6 +1,6 @@
 ---
 name: orc-workflow
-description: Use when creating, generating, scaffolding, modifying, or reviewing Orc workflow YAML files, or when the user asks to build an automation workflow for Orc
+description: Use when creating, generating, scaffolding, modifying, reviewing, or executing Orc workflow YAML files, or when the user asks to build or run an automation workflow for Orc
 ---
 
 # Orc Workflow
@@ -9,17 +9,18 @@ Create, modify, and review Orc workflow YAML files.
 
 ## Commands
 
-This skill supports three commands. Parse the first argument after `/orc-workflow`:
+This skill supports four commands. Parse the first argument after `/orc-workflow`:
 
 | Command | Usage | Description |
 |---------|-------|-------------|
 | `create` | `/orc-workflow create` | Create a new workflow |
 | `update` | `/orc-workflow update [name]` | Modify an existing workflow |
 | `review` | `/orc-workflow review [name]` | Lint, review, and summarize a workflow |
+| `execute` | `/orc-workflow execute [name]` | Start, monitor, diagnose, and report on a workflow run |
 
 If the command is missing or unrecognized, ask the user which command they want.
 
-### Workflow Selection (for `update` and `review`)
+### Workflow Selection (for `update`, `review`, and `execute`)
 
 If a workflow name is provided, find it in `.orc/workflows/`. If not provided:
 
@@ -131,6 +132,89 @@ Review a workflow for correctness, consistency, and quality.
    - **Missing outputs**: useful node results that aren't surfaced in the output mapping
 
    If nothing to propose, say "No optimizations suggested." Do not invent improvements for the sake of it.
+
+## Command: `execute`
+
+Start a workflow, monitor it continuously, diagnose problems, and report results.
+
+### Execution Phases
+
+#### Phase 1: Start
+
+1. Run `orc start <name>` (include any `--input key=value` args the user provided).
+2. If it fails with "already running", ask the user whether to cancel the existing run and retry.
+3. Capture the run ID from `orc list --status running` (most recent entry).
+
+#### Phase 2: Monitor
+
+Poll `orc status <run-id>` every **60 seconds**. After each check, report a single line:
+
+```
+**[Check N]** <node-name> is <doing-what> — <brief context if available>.
+```
+
+To determine what a node is doing:
+- If a node just transitioned to `running`, note what it is (e.g., "ideation agent started", "building/testing").
+- If a node has been running for multiple checks, verify the agent process is alive: `ps aux | grep "claude -p" | grep -v grep`. Report CPU time progression to confirm it's not stuck.
+- If new nodes appeared since last check, report the transition (e.g., "`review` completed, `implement` now running").
+- Check `git status --short` and `git log --oneline -3` periodically to observe implementation progress (new/modified files, new commits).
+
+#### Phase 3: Diagnose
+
+A node is **potentially stuck** if:
+- It has been `running` for more than 15 minutes AND
+- Its agent process CPU time has not increased between two consecutive checks AND
+- No new file changes appear in `git status`
+
+If stuck:
+1. Report the finding to the user with evidence (CPU time, duration, file state).
+2. Ask whether to: (a) wait longer, (b) cancel and restart the workflow, or (c) cancel and abort.
+
+A workflow has **failed** if:
+- `orc status` shows status `failed` or any node shows `failed` status.
+
+If failed:
+1. Run `orc logs <run-id> --node <failed-node>` to get error details.
+2. Report the error with context.
+3. Ask the user whether to: (a) fix the issue and `orc resume <run-id>`, (b) cancel and restart, or (c) abort.
+
+#### Phase 4: Report
+
+When `orc status` shows the run as `completed`:
+
+1. Run `orc status <run-id>` one final time to capture the full output.
+2. Present a structured summary:
+
+```
+## Workflow Run Summary (<run-id>)
+
+**Workflow:** <name>
+**Duration:** <start-to-end time>
+**Status:** Completed
+
+### Node Timeline
+| Node | Duration | Status |
+|------|----------|--------|
+| <id> | <Xm Ys>  | completed |
+
+### What Was Accomplished
+<Parse the run output and summarize what happened at each stage>
+
+### Artifacts
+<List any files created/modified — from git status or run output>
+
+### Caveats
+<Any warnings, skipped steps, or issues noted during execution>
+```
+
+3. If the workflow produced uncommitted changes, note them and ask if the user wants to build/test/commit.
+
+### Error Recovery
+
+If `orc start` fails for any reason other than "already running":
+1. Read the error message.
+2. Check if it's a fixable issue (e.g., missing `.orc/` directory — run `orc init`; missing workflow file — list available workflows).
+3. If fixable, fix it and retry. If not, report the error and stop.
 
 ## Generation Guidelines
 

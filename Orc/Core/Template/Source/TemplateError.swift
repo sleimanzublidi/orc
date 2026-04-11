@@ -29,3 +29,7 @@ extension TemplateError: CustomStringConvertible {
         }
     }
 }
+
+extension TemplateError: LocalizedError {
+    public var errorDescription: String? { description }
+}

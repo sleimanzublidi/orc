@@ -1,3 +1,4 @@
+import Foundation
 import Models
 
 /// Typed errors for the Engine module, covering workflow execution failures,
@@ -78,4 +79,8 @@ extension EngineError: CustomStringConvertible {
             "Orc already initialized (\(path))."
         }
     }
+}
+
+extension EngineError: LocalizedError {
+    public var errorDescription: String? { description }
 }

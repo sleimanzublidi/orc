@@ -1,3 +1,5 @@
+import Foundation
+
 // MARK: - ProviderError
 
 /// Typed errors for the Providers module, covering subprocess failures,
@@ -34,4 +36,8 @@ extension ProviderError: CustomStringConvertible {
             return "Provider '\(name)' not found."
         }
     }
+}
+
+extension ProviderError: LocalizedError {
+    public var errorDescription: String? { description }
 }
