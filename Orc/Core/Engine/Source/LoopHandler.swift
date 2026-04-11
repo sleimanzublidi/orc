@@ -58,6 +58,8 @@ struct LoopHandler: Sendable {
             // Check for task cancellation before each iteration.
             try Task.checkCancellation()
 
+            logger.info("[\(node.id)] iteration \(iteration)/\(loopConfig.maxIterations)...")
+
             // Resolve the prompt template with current context (includes {{last_output}}).
             let resolvedPrompt: String
             if let prompt = node.prompt {
@@ -137,6 +139,9 @@ struct LoopHandler: Sendable {
                     detail: error.localizedDescription
                 )
             }
+
+            let evalResult = shouldStop ? "stopped" : "continuing"
+            logger.info("[\(node.id)] iteration \(iteration) → \(evalResult)")
 
             if shouldStop {
                 return TaskOutput(output: lastOutput, exitStatus: output.exitStatus)
