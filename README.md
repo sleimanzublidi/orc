@@ -260,6 +260,7 @@ Configuration precedence: CLI flags > workflow YAML > `.orc/config.yml` > built-
 * [x] Custom CLI agent support
 * [x] Interactive nodes (session and prompt modes)
 * [x] Nested workflow support
+* [ ] Parameterized nested workflows (input defaults, template resolution in config fields, and caller overrides)
 * [ ] Agent-level output streaming
 * [ ] Local web server for browser-based monitoring
 * [ ] Linux support
