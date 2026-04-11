@@ -354,6 +354,45 @@ struct ConfigManagerTests {
         #expect(after.retentionDays == 60)
     }
 
+    // MARK: - Verbose Config
+
+    @Test("Parses output.verbose from config")
+    func parsesOutputVerbose() throws {
+        let yaml = """
+        output:
+          verbose: true
+        """
+
+        let dir = try makeTempOrcDir(configYAML: yaml)
+        let manager = ConfigManager(basePath: dir)
+        let config = try manager.loadConfig()
+
+        #expect(config.verbose == true)
+    }
+
+    @Test("Default config has verbose false")
+    func defaultConfigVerboseFalse() throws {
+        let dir = try makeTempOrcDir()
+        let manager = ConfigManager(basePath: dir)
+        let config = try manager.loadConfig()
+
+        #expect(config.verbose == false)
+    }
+
+    @Test("getValue resolves output.verbose key")
+    func getValueOutputVerbose() throws {
+        let yaml = """
+        output:
+          verbose: true
+        """
+
+        let dir = try makeTempOrcDir(configYAML: yaml)
+        let manager = ConfigManager(basePath: dir)
+        let value = try manager.getValue(key: "output.verbose")
+
+        #expect(value == "true")
+    }
+
     @Test("unsetValue removes a nested key and cleans up empty parent")
     func unsetValueNestedKeyWithCleanup() throws {
         let yaml = """

@@ -167,6 +167,13 @@ public struct ConfigManager: Sendable {
             }
         }
 
+        // Parse output section.
+        if let output = parsed["output"] as? [String: Any] {
+            if let verbose = output["verbose"] as? Bool {
+                config.verbose = verbose
+            }
+        }
+
         // Also support flat keys at the top level for backward compatibility.
         if let maxParallel = parsed["max_parallel_nodes"] as? Int {
             config.maxParallelNodes = maxParallel
@@ -179,6 +186,9 @@ public struct ConfigManager: Sendable {
         }
         if let shell = parsed["default_shell"] as? String {
             config.defaultShell = shell
+        }
+        if let verbose = parsed["verbose"] as? Bool {
+            config.verbose = verbose
         }
 
         return config
@@ -194,6 +204,8 @@ public struct ConfigManager: Sendable {
             return config.retentionPolicy
         case "default_shell":
             return config.defaultShell
+        case "output.verbose", "verbose":
+            return String(config.verbose)
         default:
             return nil
         }
@@ -284,6 +296,7 @@ public struct OrcConfig: Sendable, Equatable {
     public var retentionDays: Int
     public var retentionPolicy: String
     public var defaultShell: String
+    public var verbose: Bool
     public var providers: [String: ProviderConfig]
 
     public init(
@@ -291,12 +304,14 @@ public struct OrcConfig: Sendable, Equatable {
         retentionDays: Int = 30,
         retentionPolicy: String = "completed_only",
         defaultShell: String = "/bin/zsh",
+        verbose: Bool = false,
         providers: [String: ProviderConfig] = [:]
     ) {
         self.maxParallelNodes = maxParallelNodes
         self.retentionDays = retentionDays
         self.retentionPolicy = retentionPolicy
         self.defaultShell = defaultShell
+        self.verbose = verbose
         self.providers = providers
     }
 
@@ -305,6 +320,7 @@ public struct OrcConfig: Sendable, Equatable {
         retentionDays: 30,
         retentionPolicy: "completed_only",
         defaultShell: "/bin/zsh",
+        verbose: false,
         providers: [:]
     )
 }
