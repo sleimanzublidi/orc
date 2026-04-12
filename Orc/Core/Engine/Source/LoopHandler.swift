@@ -27,7 +27,11 @@ struct LoopHandler: Sendable {
     ///   - node: The node definition with its loop configuration.
     ///   - run: The current workflow run.
     ///   - context: The accumulated task context (inputs, outputs, workspace path).
-    ///   - loopConfig: The loop configuration (until evaluator, max_iterations, fresh_context).
+    ///   - loopConfig: The resolved loop configuration (until evaluator, max_iterations, fresh_context).
+    ///   - agentName: The resolved agent name for this node.
+    ///   - timeoutSeconds: The resolved timeout for provider execution.
+    ///   - permissionMode: The resolved permission mode for provider execution.
+    ///   - retryConfig: The resolved retry configuration for per-iteration retries.
     /// - Returns: The output from the final iteration.
     /// - Throws: `EngineError.maxIterationsReached` if the loop exhausts all iterations
     ///   without the evaluator returning true.
@@ -35,17 +39,20 @@ struct LoopHandler: Sendable {
         node: Models.Node,
         run: Run,
         context: TaskContext,
-        loopConfig: LoopConfig
+        loopConfig: ResolvedLoopConfig,
+        agentName: String,
+        timeoutSeconds: Int?,
+        permissionMode: PermissionMode?,
+        retryConfig: ResolvedRetryConfig?
     ) async throws -> TaskOutput {
-        let provider = try providers.provider(named: node.agent?.literalValue ?? "shell")
+        let provider = try providers.provider(named: agentName)
 
         // H5: Acknowledge fresh_context flag. All current providers are stateless
         // (each invocation spawns a new process), so fresh_context: true is the
         // effective default. When fresh_context is false, the intent is to let AI
         // agents maintain conversation context across iterations — but no current
         // provider supports persistent sessions, so we log a warning.
-        let freshContext = loopConfig.freshContext.literalValue ?? false
-        if !freshContext {
+        if !loopConfig.freshContext {
             logger.warning(
                 "fresh_context: false requested for loop node '\(node.id)', but all current providers are stateless — conversation context will not persist across iterations"
             )
@@ -55,7 +62,7 @@ struct LoopHandler: Sendable {
         var previousOutput: String? = nil
         var currentContext = context
 
-        let maxIterations = loopConfig.maxIterations.literalValue ?? 10
+        let maxIterations = loopConfig.maxIterations
         for iteration in 1...maxIterations {
             // Check for task cancellation before each iteration.
             try Task.checkCancellation()
@@ -77,7 +84,7 @@ struct LoopHandler: Sendable {
                 runID: run.id,
                 nodeID: node.id,
                 status: .running,
-                agent: node.agent?.literalValue,
+                agent: agentName,
                 attempt: 1,
                 iteration: iteration,
                 prompt: resolvedPrompt,
@@ -91,7 +98,10 @@ struct LoopHandler: Sendable {
                 output = try await executeIterationWithRetry(
                     node: node, run: run, provider: provider,
                     resolvedPrompt: resolvedPrompt, context: currentContext,
-                    iteration: iteration, execID: execID
+                    iteration: iteration, execID: execID,
+                    timeoutSeconds: timeoutSeconds,
+                    permissionMode: permissionMode,
+                    retryConfig: retryConfig
                 )
             } catch {
                 try await store.updateNodeExecution(
@@ -182,7 +192,7 @@ struct LoopHandler: Sendable {
     /// a per-iteration tmux session name. Prompt-interactive loops are not yet
     /// supported (they require the full dispatcher awaiting_input flow).
     ///
-    /// H8: Wraps execution in retry logic from the node's retry config.
+    /// H8: Wraps execution in retry logic from the resolved retry config.
     private func executeIterationWithRetry(
         node: Models.Node,
         run: Run,
@@ -190,9 +200,12 @@ struct LoopHandler: Sendable {
         resolvedPrompt: String,
         context: TaskContext,
         iteration: Int,
-        execID: String
+        execID: String,
+        timeoutSeconds: Int?,
+        permissionMode: PermissionMode?,
+        retryConfig: ResolvedRetryConfig?
     ) async throws -> TaskOutput {
-        let maxAttempts = node.retry?.maxAttempts.literalValue ?? 1
+        let maxAttempts = retryConfig?.maxAttempts ?? 1
         var lastError: (any Error)?
 
         for attempt in 1...maxAttempts {
@@ -204,7 +217,7 @@ struct LoopHandler: Sendable {
                         prompt: resolvedPrompt,
                         context: context,
                         sessionName: sessionName,
-                        timeout: node.timeoutSeconds?.literalValue
+                        timeout: timeoutSeconds
                     )
 
                     // Poll until the tmux session exits, similar to InteractiveHandler.
@@ -236,12 +249,13 @@ struct LoopHandler: Sendable {
 
                 // Standard (non-interactive) execution.
                 return try await provider.execute(
-                    prompt: resolvedPrompt, context: context, timeout: node.timeoutSeconds?.literalValue, permissionMode: node.permissionMode?.literalValue
+                    prompt: resolvedPrompt, context: context,
+                    timeout: timeoutSeconds, permissionMode: permissionMode
                 )
             } catch {
                 lastError = error
                 if attempt < maxAttempts {
-                    if let delay = node.retry?.delaySeconds.literalValue, delay > 0 {
+                    if let delay = retryConfig?.delaySeconds, delay > 0 {
                         try? await Task.sleep(nanoseconds: UInt64(delay) * 1_000_000_000)
                     }
                 }

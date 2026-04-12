@@ -38,15 +38,17 @@ struct InteractiveHandler: Sendable {
     ///   - context: The accumulated task context.
     ///   - sessionName: The tmux session name to create.
     ///   - nodeExecutionID: The ID of the node execution record to update.
+    ///   - agentName: The resolved agent name for provider lookup.
     /// - Returns: The output from the interactive session.
     func handleSession(
         node: Models.Node,
         run: Run,
         context: TaskContext,
         sessionName: String,
-        nodeExecutionID: String
+        nodeExecutionID: String,
+        agentName: String = "shell"
     ) async throws -> TaskOutput {
-        let provider = try providers.provider(named: node.agent?.literalValue ?? "shell")
+        let provider = try providers.provider(named: agentName)
 
         // H6: Resolve {{variables}} in the prompt before passing to the provider.
         // Without this, raw template strings like "{{some_var}}" would be sent

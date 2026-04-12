@@ -46,6 +46,12 @@ public enum EngineError: Error, Sendable, Equatable {
     /// Attempted to initialize a project where `.orc/` already exists.
     case projectAlreadyExists(path: String)
 
+    /// A required workflow input was not provided and has no default value.
+    case missingRequiredInput(name: String, workflow: String)
+
+    /// A node config field resolved to an invalid value.
+    case invalidConfigValue(node: String, field: String, value: String, expected: String)
+
 }
 
 extension EngineError: CustomStringConvertible {
@@ -77,6 +83,10 @@ extension EngineError: CustomStringConvertible {
             "Node '\(nodeID)' nested workflow '\(workflowFile)' failed: \(detail)"
         case .projectAlreadyExists(let path):
             "Orc already initialized (\(path))."
+        case .missingRequiredInput(let name, let workflow):
+            "Missing required input '\(name)' for workflow '\(workflow)'."
+        case .invalidConfigValue(let node, let field, let value, let expected):
+            "[\(node)] Config field '\(field)' resolved to '\(value)'; expected \(expected)."
         }
     }
 }

@@ -81,13 +81,18 @@ struct LoopHandlerTests {
         )
 
         let node = Models.Node(id: "loop-node", agent: .literal("fake"), prompt: "iterate")
-        let loopConfig = LoopConfig(until: "approved", maxIterations: .literal(5))
+        let loopConfig = ResolvedLoopConfig(until: "approved", maxIterations: 5, freshContext: false)
         let context = TaskContext(repoRoot: "/tmp/repo", workspacePath: "/tmp/workspace")
 
         _ = try await store.createRun(makeRun())
 
         let output = try await handler.executeLoop(
-            node: node, run: makeRun(), context: context, loopConfig: loopConfig
+            node: node, run: makeRun(), context: context,
+            loopConfig: loopConfig,
+            agentName: "fake",
+            timeoutSeconds: nil,
+            permissionMode: nil,
+            retryConfig: nil
         )
 
         // Should have stopped after 2 iterations (second output was "yes").
@@ -106,14 +111,19 @@ struct LoopHandlerTests {
         let (handler, _) = makeHandler(fakeProvider: fakeProvider, store: store)
 
         let node = Models.Node(id: "loop-node", agent: .literal("fake"), prompt: "iterate")
-        let loopConfig = LoopConfig(until: "approved", maxIterations: .literal(3))
+        let loopConfig = ResolvedLoopConfig(until: "approved", maxIterations: 3, freshContext: false)
         let context = TaskContext(repoRoot: "/tmp/repo", workspacePath: "/tmp/workspace")
 
         _ = try await store.createRun(makeRun())
 
         await #expect(throws: EngineError.self) {
             try await handler.executeLoop(
-                node: node, run: self.makeRun(), context: context, loopConfig: loopConfig
+                node: node, run: self.makeRun(), context: context,
+                loopConfig: loopConfig,
+                agentName: "fake",
+                timeoutSeconds: nil,
+                permissionMode: nil,
+                retryConfig: nil
             )
         }
     }
@@ -130,14 +140,19 @@ struct LoopHandlerTests {
 
         let node = Models.Node(id: "loop-node", agent: .literal("fake"), prompt: "iterate")
         // Use a non-existent evaluator to trigger evaluatorNotFound.
-        let loopConfig = LoopConfig(until: "nonexistent_evaluator", maxIterations: .literal(5))
+        let loopConfig = ResolvedLoopConfig(until: "nonexistent_evaluator", maxIterations: 5, freshContext: false)
         let context = TaskContext(repoRoot: "/tmp/repo", workspacePath: "/tmp/workspace")
 
         _ = try await store.createRun(makeRun())
 
         await #expect(throws: EngineError.self) {
             try await handler.executeLoop(
-                node: node, run: self.makeRun(), context: context, loopConfig: loopConfig
+                node: node, run: self.makeRun(), context: context,
+                loopConfig: loopConfig,
+                agentName: "fake",
+                timeoutSeconds: nil,
+                permissionMode: nil,
+                retryConfig: nil
             )
         }
 

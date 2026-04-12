@@ -109,11 +109,27 @@ struct LocalizedErrorTests {
             .cyclicDependency(nodes: ["A", "B"]),
             .nestedWorkflowFailed(nodeID: "sub", workflowFile: "child.yml", detail: "parse error"),
             .projectAlreadyExists(path: "/project/.orc"),
+            .missingRequiredInput(name: "api_key", workflow: "deploy-wf"),
+            .invalidConfigValue(node: "step-1", field: "timeout", value: "abc", expected: "integer"),
         ]
         for engineError in cases {
             let anyError: any Error = engineError
             #expect(anyError.localizedDescription == engineError.description)
         }
+    }
+
+    @Test("EngineError.missingRequiredInput produces correct message")
+    func missingRequiredInputMessage() {
+        let error = EngineError.missingRequiredInput(name: "api_key", workflow: "deploy-wf")
+        #expect(error.description == "Missing required input 'api_key' for workflow 'deploy-wf'.")
+    }
+
+    @Test("EngineError.invalidConfigValue produces correct message")
+    func invalidConfigValueMessage() {
+        let error = EngineError.invalidConfigValue(
+            node: "step-1", field: "timeout", value: "abc", expected: "integer"
+        )
+        #expect(error.description == "[step-1] Config field 'timeout' resolved to 'abc'; expected integer.")
     }
 
     // MARK: - TemplateError

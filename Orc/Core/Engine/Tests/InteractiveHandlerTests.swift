@@ -166,7 +166,8 @@ struct InteractiveHandlerTests {
 
         let output = try await handler.handleSession(
             node: node, run: run, context: context,
-            sessionName: "test-session", nodeExecutionID: execID
+            sessionName: "test-session", nodeExecutionID: execID,
+            agentName: "fake"
         )
 
         // The provider's executeInteractive should have been called.
@@ -225,7 +226,8 @@ struct InteractiveHandlerTests {
 
         let output = try await handler.handleSession(
             node: node, run: run, context: context,
-            sessionName: "test-session", nodeExecutionID: execID
+            sessionName: "test-session", nodeExecutionID: execID,
+            agentName: "fake"
         )
 
         // Capture failed, so output is empty — not an error.
@@ -264,7 +266,8 @@ struct InteractiveHandlerTests {
 
         let output = try await handler.handleSession(
             node: node, run: run, context: context,
-            sessionName: "fast-session", nodeExecutionID: execID
+            sessionName: "fast-session", nodeExecutionID: execID,
+            agentName: "fake"
         )
 
         // Only 1 sessionExists check (returned false immediately).

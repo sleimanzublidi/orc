@@ -39,6 +39,35 @@ struct NodeDispatcher: Sendable {
         var nodeOutputs: [String: String] = completedOutputs
         var nodeStatuses: [String: NodeStatus] = [:]
 
+        // Merge workflow input defaults into the provided inputs.
+        // This ensures that inputs with default values are available even when
+        // the caller does not provide them, and validates that all required
+        // inputs without defaults are present.
+        var mutableInputs = inputs
+        for workflowInput in plan.workflow.input {
+            if mutableInputs[workflowInput.name] == nil {
+                if let defaultTemplate = workflowInput.defaultValue {
+                    let defaultContext = TaskContext(
+                        inputs: mutableInputs,
+                        repoRoot: repoRoot,
+                        workspacePath: run.workspacePath
+                    )
+                    let resolved = try templateResolver.resolve(
+                        template: defaultTemplate, context: defaultContext
+                    )
+                    mutableInputs[workflowInput.name] = resolved
+                } else if workflowInput.required {
+                    throw EngineError.missingRequiredInput(
+                        name: workflowInput.name,
+                        workflow: plan.workflow.name
+                    )
+                }
+            }
+        }
+        // Freeze after all defaults are resolved — mergedInputs is immutable
+        // from here, which satisfies Sendable requirements for task group closures.
+        let mergedInputs = mutableInputs
+
         // Mark previously completed nodes.
         for nodeID in completedOutputs.keys {
             nodeStatuses[nodeID] = .completed
@@ -102,7 +131,7 @@ struct NodeDispatcher: Sendable {
                             try await self.executeNode(
                                 nodeID: nodeID,
                                 run: run,
-                                inputs: inputs,
+                                inputs: mergedInputs,
                                 nodeOutputs: snapshotOutputs,
                                 nodeStatuses: snapshotStatuses
                             )
@@ -213,7 +242,7 @@ struct NodeDispatcher: Sendable {
         // If the workflow has an output mapping, resolve it.
         if finalStatus == .completed, let outputMap = plan.workflow.output {
             let context = TaskContext(
-                inputs: inputs,
+                inputs: mergedInputs,
                 outputs: nodeOutputs,
                 nodeStatuses: nodeStatuses,
                 repoRoot: repoRoot,
@@ -297,37 +326,64 @@ struct NodeDispatcher: Sendable {
             }
         }
 
+        // Resolve all Resolvable config fields into typed values before dispatch.
+        let config: ResolvedNodeConfig
+        do {
+            config = try resolveNodeConfig(node, context: context)
+        } catch {
+            let execID = UUID().uuidString
+            let exec = NodeExecution(
+                id: execID,
+                runID: run.id,
+                nodeID: nodeID,
+                status: .failed,
+                error: "Config resolution failed: \(error)",
+                startedAt: Date(),
+                completedAt: Date()
+            )
+            do {
+                _ = try await store.createNodeExecution(exec)
+            } catch {
+                logger.warning("[\(nodeID)] Failed to persist config resolution failure: \(error)")
+            }
+            return (nodeID, .failed, nil, error)
+        }
+
         // Handle interactive nodes.
         if let interactive = node.interactive {
             return await executeInteractiveNode(
-                node: node, interactive: interactive, run: run, context: context
+                node: node, interactive: interactive, run: run, context: context,
+                config: config
             )
         }
 
         // Handle loop nodes.
-        if let loopConfig = node.loop {
+        if node.loop != nil {
             return await executeLoopNode(
-                node: node, loopConfig: loopConfig, run: run, context: context
+                node: node, run: run, context: context, config: config
             )
         }
 
         // Handle nested workflow nodes.
         if node.workflow != nil {
-            return await executeNestedWorkflow(node: node, run: run, context: context)
+            return await executeNestedWorkflow(
+                node: node, run: run, context: context, config: config
+            )
         }
 
         // Standard single-execution node.
-        return await executeSingleNode(node: node, run: run, context: context)
+        return await executeSingleNode(node: node, run: run, context: context, config: config)
     }
 
     /// Executes a standard (non-loop, non-interactive) node.
     private func executeSingleNode(
         node: Models.Node,
         run: Run,
-        context: TaskContext
+        context: TaskContext,
+        config: ResolvedNodeConfig
     ) async -> (String, NodeStatus, String?, (any Error)?) {
         let execID = UUID().uuidString
-        let agentName = node.agent?.literalValue ?? "shell"
+        let agentName = config.agent ?? "shell"
 
         // Resolve the prompt/command template.
         let resolvedPrompt: String
@@ -373,8 +429,8 @@ struct NodeDispatcher: Sendable {
             logger.warning("[\(node.id)] Failed to persist running execution: \(error)")
         }
 
-        // Execute with retry support.
-        let maxAttempts = node.retry?.maxAttempts.literalValue ?? 1
+        // Execute with retry support using resolved config values.
+        let maxAttempts = config.retry?.maxAttempts ?? 1
         var lastError: (any Error)?
 
         for attempt in 1...maxAttempts {
@@ -383,7 +439,11 @@ struct NodeDispatcher: Sendable {
             }
             do {
                 let provider = try providers.provider(named: agentName)
-                let output = try await provider.execute(prompt: resolvedPrompt, context: context, timeout: node.timeoutSeconds?.literalValue, permissionMode: node.permissionMode?.literalValue)
+                let output = try await provider.execute(
+                    prompt: resolvedPrompt, context: context,
+                    timeout: config.timeoutSeconds,
+                    permissionMode: config.permissionMode
+                )
 
                 try await store.updateNodeExecution(
                     id: execID,
@@ -397,7 +457,7 @@ struct NodeDispatcher: Sendable {
                 lastError = error
                 logger.debug("[\(node.id)] attempt \(attempt)/\(maxAttempts) failed: \(error.localizedDescription)")
                 if attempt < maxAttempts {
-                    if let delay = node.retry?.delaySeconds.literalValue, delay > 0 {
+                    if let delay = config.retry?.delaySeconds, delay > 0 {
                         try? await Task.sleep(nanoseconds: UInt64(delay) * 1_000_000_000)
                     }
                 }
@@ -428,7 +488,8 @@ struct NodeDispatcher: Sendable {
         node: Models.Node,
         interactive: InteractiveMode,
         run: Run,
-        context: TaskContext
+        context: TaskContext,
+        config: ResolvedNodeConfig
     ) async -> (String, NodeStatus, String?, (any Error)?) {
         let execID = UUID().uuidString
 
@@ -451,7 +512,7 @@ struct NodeDispatcher: Sendable {
             runID: run.id,
             nodeID: node.id,
             status: .running,
-            agent: node.agent?.literalValue,
+            agent: config.agent,
             message: message,
             tmuxSession: sessionName,
             startedAt: Date()
@@ -466,14 +527,15 @@ struct NodeDispatcher: Sendable {
         case .session:
             // sessionName is guaranteed non-nil in the .session branch.
             let resolvedSessionName = sessionName!
-            let maxAttempts = node.retry?.maxAttempts.literalValue ?? 1
+            let maxAttempts = config.retry?.maxAttempts ?? 1
             var lastError: (any Error)?
 
             for attempt in 1...maxAttempts {
                 do {
                     let output = try await interactiveHandler.handleSession(
                         node: node, run: run, context: context,
-                        sessionName: resolvedSessionName, nodeExecutionID: execID
+                        sessionName: resolvedSessionName, nodeExecutionID: execID,
+                        agentName: config.agent ?? "shell"
                     )
                     try await store.updateNodeExecution(
                         id: execID,
@@ -485,7 +547,7 @@ struct NodeDispatcher: Sendable {
                 } catch {
                     lastError = error
                     if attempt < maxAttempts {
-                        if let delay = node.retry?.delaySeconds.literalValue, delay > 0 {
+                        if let delay = config.retry?.delaySeconds, delay > 0 {
                             try? await Task.sleep(nanoseconds: UInt64(delay) * 1_000_000_000)
                         }
                     }
@@ -535,23 +597,34 @@ struct NodeDispatcher: Sendable {
     /// maxIterationsReached). Each retry restarts the loop from iteration 1.
     private func executeLoopNode(
         node: Models.Node,
-        loopConfig: LoopConfig,
         run: Run,
-        context: TaskContext
+        context: TaskContext,
+        config: ResolvedNodeConfig
     ) async -> (String, NodeStatus, String?, (any Error)?) {
-        let maxAttempts = node.retry?.maxAttempts.literalValue ?? 1
+        let maxAttempts = config.retry?.maxAttempts ?? 1
         var lastError: (any Error)?
+
+        guard let loopConfig = config.loop else {
+            return (node.id, .failed, nil, EngineError.invalidConfigValue(
+                node: node.id, field: "loop", value: "nil", expected: "loop configuration"
+            ))
+        }
 
         for attempt in 1...maxAttempts {
             do {
                 let output = try await loopHandler.executeLoop(
-                    node: node, run: run, context: context, loopConfig: loopConfig
+                    node: node, run: run, context: context,
+                    loopConfig: loopConfig,
+                    agentName: config.agent ?? "shell",
+                    timeoutSeconds: config.timeoutSeconds,
+                    permissionMode: config.permissionMode,
+                    retryConfig: config.retry
                 )
                 return (node.id, .completed, output.output, nil)
             } catch {
                 lastError = error
                 if attempt < maxAttempts {
-                    if let delay = node.retry?.delaySeconds.literalValue, delay > 0 {
+                    if let delay = config.retry?.delaySeconds, delay > 0 {
                         try? await Task.sleep(nanoseconds: UInt64(delay) * 1_000_000_000)
                     }
                 }
@@ -578,7 +651,8 @@ struct NodeDispatcher: Sendable {
     private func executeNestedWorkflow(
         node: Models.Node,
         run: Run,
-        context: TaskContext
+        context: TaskContext,
+        config: ResolvedNodeConfig
     ) async -> (String, NodeStatus, String?, (any Error)?) {
         guard let workflowFile = node.workflow else {
             return (node.id, .failed, nil, EngineError.nestedWorkflowFailed(
@@ -653,11 +727,34 @@ struct NodeDispatcher: Sendable {
             }
         }
 
+        // 2b. Validate that the parent provides all required inputs for the child.
+        //     Inputs that have a default in the child workflow are exempt — they
+        //     will be filled during the child's own default merging phase.
+        for childInput in childWorkflow.input {
+            if childInput.required && childInput.defaultValue == nil
+                && childInputs[childInput.name] == nil
+            {
+                do {
+                    try await store.updateNodeExecution(
+                        id: execID,
+                        status: .failed,
+                        output: nil,
+                        error: "Missing required input '\(childInput.name)' for child workflow '\(childWorkflow.name)'"
+                    )
+                } catch let storeError {
+                    logger.warning("[\(node.id)] Failed to persist missing input failure: \(storeError)")
+                }
+                return (node.id, .failed, nil, EngineError.missingRequiredInput(
+                    name: childInput.name, workflow: childWorkflow.name
+                ))
+            }
+        }
+
         // 3. Determine workspace path based on workspace mode.
         //    shared (default): child uses parent's workspace path.
         //    isolated: child gets a sub-workspace directory.
         let childWorkspacePath: String
-        let workspaceMode = node.workspaceMode?.literalValue ?? .shared
+        let workspaceMode = config.workspaceMode ?? .shared
 
         switch workspaceMode {
         case .shared:
@@ -841,6 +938,58 @@ struct NodeDispatcher: Sendable {
 
         logger.debug("nested workflow: \(workflowFile) completed")
         return (node.id, .completed, childOutput, nil)
+    }
+
+    // MARK: - Config Resolution
+
+    /// Resolves all `Resolvable` config fields on a node into concrete typed values.
+    ///
+    /// Called once per node before dispatching to any execution method. This ensures
+    /// template expressions like `{{input.timeout}}` are resolved against the
+    /// current context and converted to their target types.
+    private func resolveNodeConfig(
+        _ node: Models.Node, context: TaskContext
+    ) throws -> ResolvedNodeConfig {
+        let agent: String? = try node.agent.map {
+            try templateResolver.resolve($0, context: context)
+        }
+        let timeoutSeconds: Int? = try node.timeoutSeconds.map {
+            try templateResolver.resolve($0, context: context)
+        }
+        let onFailure = try templateResolver.resolve(node.onFailure, context: context)
+        let workspaceMode: WorkspaceMode? = try node.workspaceMode.map {
+            try templateResolver.resolve($0, context: context)
+        }
+        let permissionMode: PermissionMode? = try node.permissionMode.map {
+            try templateResolver.resolve($0, context: context)
+        }
+
+        let retry: ResolvedRetryConfig?
+        if let r = node.retry {
+            retry = ResolvedRetryConfig(
+                maxAttempts: try templateResolver.resolve(r.maxAttempts, context: context),
+                delaySeconds: try templateResolver.resolve(r.delaySeconds, context: context)
+            )
+        } else {
+            retry = nil
+        }
+
+        let loop: ResolvedLoopConfig?
+        if let l = node.loop {
+            loop = ResolvedLoopConfig(
+                until: l.until,
+                maxIterations: try templateResolver.resolve(l.maxIterations, context: context),
+                freshContext: try templateResolver.resolve(l.freshContext, context: context)
+            )
+        } else {
+            loop = nil
+        }
+
+        return ResolvedNodeConfig(
+            agent: agent, timeoutSeconds: timeoutSeconds, onFailure: onFailure,
+            workspaceMode: workspaceMode, permissionMode: permissionMode,
+            retry: retry, loop: loop
+        )
     }
 
     // MARK: - Dependency Checking
