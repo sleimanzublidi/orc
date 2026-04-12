@@ -96,6 +96,81 @@ struct ClaudeCodeProvider: AgentProviding, Sendable {
         return TaskOutput(output: text, exitStatus: Int(result.exitCode))
     }
 
+    func executeStreaming(
+        prompt: String,
+        context: TaskContext,
+        timeout: Int? = nil,
+        parameters: [String: String] = [:]
+    ) -> AsyncThrowingStream<AgentStreamEvent, any Error> {
+        let stdoutPath = NSTemporaryDirectory()
+            + "orc-claude-stdout-\(UUID().uuidString).json"
+        let stderrPath = NSTemporaryDirectory()
+            + "orc-claude-stderr-\(UUID().uuidString).txt"
+
+        let mode = ClaudePermissionMode(rawValue: parameters["permission_mode"] ?? "") ?? .acceptEdits
+        let bare = parameters["bare"] == "true"
+        let model = parameters["model"]
+
+        var arguments = ["-p", prompt,
+                         "--no-chrome",
+                         "--output-format", "json",
+                         "--permission-mode", mode.rawValue]
+        if bare { arguments += ["--bare"] }
+        if let model { arguments += ["--model", model] }
+
+        let environment = context.environment.isEmpty ? nil : context.environment
+
+        let processStream = processRunner.runStreaming(
+            command: claudePath,
+            arguments: arguments,
+            workingDirectory: context.repoRoot,
+            environment: environment,
+            timeout: timeout,
+            stdoutPath: stdoutPath,
+            stderrPath: stderrPath,
+            executablePath: claudePath
+        )
+
+        return AsyncThrowingStream { continuation in
+            let task = Task { [self] in
+                do {
+                    for try await event in processStream {
+                        switch event {
+                        case .stdout:
+                            // Buffer stdout (JSON) — don't stream fragments
+                            break
+                        case .stderr(let data):
+                            // Stream stderr (Claude Code progress output)
+                            if let text = String(data: data, encoding: .utf8), !text.isEmpty {
+                                continuation.yield(.output(text, .stderr))
+                            }
+                        case .completed(let result):
+                            guard result.exitCode == 0 else {
+                                let stderr = FileReader.readContents(at: result.stderrPath)
+                                continuation.finish(throwing: ProviderError.processFailure(
+                                    command: "claude -p",
+                                    exitCode: result.exitCode,
+                                    stderr: stderr
+                                ))
+                                return
+                            }
+                            let rawOutput = FileReader.readContents(at: result.stdoutPath)
+                            let text = try self.parseClaudeJSON(rawOutput)
+                            continuation.yield(.completed(TaskOutput(
+                                output: text,
+                                exitStatus: Int(result.exitCode)
+                            )))
+                        }
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { @Sendable _ in task.cancel() }
+        }
+    }
+
     func executeInteractive(
         prompt: String,
         context: TaskContext,

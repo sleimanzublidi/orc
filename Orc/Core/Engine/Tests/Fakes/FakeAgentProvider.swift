@@ -19,6 +19,9 @@ final class FakeAgentProvider: AgentProviding, @unchecked Sendable {
     /// If set, the provider throws this error instead of returning output.
     var errorToThrow: (any Error)?
 
+    /// If set, executeStreaming() yields these events. Otherwise falls back to wrapping execute().
+    var streamEvents: [AgentStreamEvent]?
+
     /// Records all prompts that were executed, in order.
     private(set) var executedPrompts: [String] = []
 
@@ -43,6 +46,35 @@ final class FakeAgentProvider: AgentProviding, @unchecked Sendable {
         }
 
         return TaskOutput(output: defaultOutput, exitStatus: 0)
+    }
+
+    func executeStreaming(
+        prompt: String,
+        context: TaskContext,
+        timeout: Int? = nil,
+        parameters: [String: String] = [:]
+    ) -> AsyncThrowingStream<AgentStreamEvent, any Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    if let events = self.streamEvents {
+                        for event in events {
+                            continuation.yield(event)
+                        }
+                    } else {
+                        let output = try await self.execute(
+                            prompt: prompt, context: context,
+                            timeout: timeout, parameters: parameters
+                        )
+                        continuation.yield(.completed(output))
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { @Sendable _ in task.cancel() }
+        }
     }
 
     func executeInteractive(

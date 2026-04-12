@@ -8,6 +8,39 @@ public protocol AgentProviding: Sendable {
     var name: String { get }
     func execute(prompt: String, context: TaskContext, timeout: Int?, parameters: [String: String]) async throws -> TaskOutput
     func executeInteractive(prompt: String, context: TaskContext, sessionName: String, timeout: Int?) async throws -> TaskOutput
+    func executeStreaming(
+        prompt: String,
+        context: TaskContext,
+        timeout: Int?,
+        parameters: [String: String]
+    ) -> AsyncThrowingStream<AgentStreamEvent, any Error>
+}
+
+// MARK: - AgentProviding Streaming Default
+
+extension AgentProviding {
+    public func executeStreaming(
+        prompt: String,
+        context: TaskContext,
+        timeout: Int? = nil,
+        parameters: [String: String] = [:]
+    ) -> AsyncThrowingStream<AgentStreamEvent, any Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let output = try await self.execute(
+                        prompt: prompt, context: context,
+                        timeout: timeout, parameters: parameters
+                    )
+                    continuation.yield(.completed(output))
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { @Sendable _ in task.cancel() }
+        }
+    }
 }
 
 // MARK: - WorkflowStoring

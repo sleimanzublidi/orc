@@ -66,6 +66,71 @@ struct ShellProvider: AgentProviding, Sendable {
         return TaskOutput(output: output, exitStatus: Int(result.exitCode))
     }
 
+    func executeStreaming(
+        prompt: String,
+        context: TaskContext,
+        timeout: Int? = nil,
+        parameters: [String: String] = [:]
+    ) -> AsyncThrowingStream<AgentStreamEvent, any Error> {
+        let stdoutPath = NSTemporaryDirectory()
+            + "orc-shell-stdout-\(UUID().uuidString).txt"
+        let stderrPath = NSTemporaryDirectory()
+            + "orc-shell-stderr-\(UUID().uuidString).txt"
+
+        let environment = context.environment.isEmpty ? nil : context.environment
+
+        let processStream = processRunner.runStreaming(
+            command: prompt,
+            arguments: ["-c", prompt],
+            workingDirectory: context.repoRoot,
+            environment: environment,
+            timeout: timeout,
+            stdoutPath: stdoutPath,
+            stderrPath: stderrPath,
+            executablePath: defaultShell
+        )
+
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    var exitCode: Int32 = 0
+                    for try await event in processStream {
+                        switch event {
+                        case .stdout(let data):
+                            if let text = String(data: data, encoding: .utf8), !text.isEmpty {
+                                continuation.yield(.output(text, .stdout))
+                            }
+                        case .stderr(let data):
+                            if let text = String(data: data, encoding: .utf8), !text.isEmpty {
+                                continuation.yield(.output(text, .stderr))
+                            }
+                        case .completed(let result):
+                            exitCode = result.exitCode
+                            let output = FileReader.readContents(at: result.stdoutPath)
+                            guard result.exitCode == 0 else {
+                                let stderr = FileReader.readContents(at: result.stderrPath)
+                                continuation.finish(throwing: ProviderError.processFailure(
+                                    command: prompt,
+                                    exitCode: result.exitCode,
+                                    stderr: stderr
+                                ))
+                                return
+                            }
+                            continuation.yield(.completed(TaskOutput(
+                                output: output,
+                                exitStatus: Int(exitCode)
+                            )))
+                        }
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { @Sendable _ in task.cancel() }
+        }
+    }
+
     func executeInteractive(
         prompt: String,
         context: TaskContext,
