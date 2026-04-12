@@ -81,41 +81,94 @@ struct StartCommand: AsyncParsableCommand {
 
             print("Running workflow \(resolvedFile)")
             let startTime = Date()
-            let run = try await engine.start(
+
+            let eventStream = try await engine.startStreaming(
                 workflowFile: resolvedFile,
                 inputs: inputs,
                 maxParallelNodes: maxParallelNodes
             )
+
+            var completedRun: Run?
+            var nodeStartTimes: [String: Date] = [:]
+            let isVerbose = verbose
+
+            for try await event in eventStream {
+                switch event {
+                case .runStarted(let run):
+                    // Open browser if monitor is running.
+                    if let server = monitorServer {
+                        let runURL = server.url.appendingPathComponent("runs/\(run.id)")
+                        #if os(macOS)
+                        let browserProcess = Process()
+                        browserProcess.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+                        browserProcess.arguments = [runURL.absoluteString]
+                        try? browserProcess.run()
+                        #elseif os(Linux)
+                        let browserProcess = Process()
+                        browserProcess.executableURL = URL(fileURLWithPath: "/usr/bin/xdg-open")
+                        browserProcess.arguments = [runURL.absoluteString]
+                        try? browserProcess.run()
+                        #endif
+                    }
+
+                case .nodeStarted(let nodeID, _, let agent):
+                    nodeStartTimes[nodeID] = Date()
+                    print("[\(nodeID)]    started (\(agent))")
+
+                case .nodeOutput(let nodeID, _, let chunk, _):
+                    if isVerbose {
+                        for line in chunk.split(separator: "\n", omittingEmptySubsequences: false) {
+                            print("[\(nodeID)]  | \(line)")
+                        }
+                    }
+
+                case .nodeCompleted(let nodeID, _, _):
+                    let elapsed = nodeStartTimes[nodeID].map {
+                        Format.duration(Date().timeIntervalSince($0))
+                    } ?? "?"
+                    print("[\(nodeID)]    completed (\(elapsed))")
+
+                case .nodeFailed(let nodeID, _, let error):
+                    let elapsed = nodeStartTimes[nodeID].map {
+                        Format.duration(Date().timeIntervalSince($0))
+                    } ?? "?"
+                    Format.printError("[\(nodeID)]    failed (\(elapsed)): \(error)")
+
+                case .nodeSkipped(let nodeID, _):
+                    print("[\(nodeID)]    skipped")
+
+                case .runCompleted(let run):
+                    completedRun = run
+
+                case .runFailed(let run, _):
+                    completedRun = run
+                }
+            }
+
             let elapsedSeconds = Date().timeIntervalSince(startTime)
+
+            guard let run = completedRun else {
+                Format.printError("Error: No completion event received")
+                throw ExitCode.failure
+            }
 
             defer { runCompletionHooks(run: run, elapsedSeconds: elapsedSeconds) }
 
-            // Open browser to the run detail page.
-            if let server = monitorServer {
-                let runURL = server.url.appendingPathComponent("runs/\(run.id)")
-                #if os(macOS)
-                let browserProcess = Process()
-                browserProcess.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-                browserProcess.arguments = [runURL.absoluteString]
-                try? browserProcess.run()
-                #elseif os(Linux)
-                let browserProcess = Process()
-                browserProcess.executableURL = URL(fileURLWithPath: "/usr/bin/xdg-open")
-                browserProcess.arguments = [runURL.absoluteString]
-                try? browserProcess.run()
-                #endif
-            }
-
             print("Workflow run \(run.id) \(Format.statusIndicator(run.status))")
+
             if run.status == .failed {
-                // Show the first failed node's error so the user knows what went wrong.
+                // Error details already printed via nodeFailed events.
+                // Also check for any errors not captured by streaming.
                 let executions = try await engine.getNodeExecutions(runID: run.id, nodeID: nil)
                 for exec in executions where exec.status == .failed {
-                    let nodeLabel = "[\(exec.nodeID)]"
-                    if let error = exec.error {
-                        Format.printError("  \(nodeLabel) \(error)")
-                    } else {
-                        Format.printError("  \(nodeLabel) failed (no details)")
+                    // Only print if we didn't already print via streaming events.
+                    if nodeStartTimes[exec.nodeID] == nil {
+                        let nodeLabel = "[\(exec.nodeID)]"
+                        if let error = exec.error {
+                            Format.printError("  \(nodeLabel) \(error)")
+                        } else {
+                            Format.printError("  \(nodeLabel) failed (no details)")
+                        }
                     }
                 }
             } else if let output = run.output {
