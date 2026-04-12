@@ -18,6 +18,10 @@ input:
   - name: feature_description
     type: string
     required: true
+  - name: target_branch
+    type: string
+    required: true
+    default: "main"              # default value, supports {{template}} syntax
 
 nodes:
   - id: plan
@@ -93,8 +97,33 @@ output:
 - **`interactive`** — two modes:
   - **`session`** — launches the agent in a tmux session. User attaches via `orc attach`. Requires `agent` field. Used for AI agents or tools that need an ongoing terminal session. Can be combined with `loop` — each loop iteration spawns a new tmux session, and the user re-attaches each time (see §7.4).
   - **`prompt`** — the engine pauses the node and displays a `message`. User responds via `orc respond` with text or a file (`--file` flag). No running process. Does not require an `agent` field.
-- **Nested workflows** — a node can reference another workflow file via `workflow:` instead of `agent`/`prompt`. The child workflow receives explicit `inputs:` and its final output flows back to the parent via `output:`. See §4 for workspace and failure semantics.
+- **Nested workflows** — a node can reference another workflow file via `workflow:` instead of `agent`/`prompt`. The child workflow receives `inputs:` (optional if all child inputs have defaults) and its final output flows back to the parent via `output:`. The engine validates that required inputs without defaults are provided by the caller. See §4 for input passing, defaults, workspace, and failure semantics.
 - **`permission_mode`** — controls the Claude Code `--permission-mode` flag for `claude-code` agent nodes. Values: `default`, `acceptEdits`, `full`, `plan`, `bypassPermissions`. Defaults to `acceptEdits` when omitted. Only meaningful for `claude-code` nodes; ignored by other providers.
+
+### Workflow inputs
+
+Each entry in `input:` has these fields:
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | String | yes | Input variable name, referenced via `{{name}}` |
+| `type` | String | yes | Type hint (currently only `string`) |
+| `required` | Bool | yes | Whether the caller must provide this input |
+| `default` | String | no | Default value if the caller omits it. Supports `{{template}}` syntax — resolved at workflow start before any node runs. Inputs with a default are effectively optional even when `required: true`, because the engine fills missing values from defaults. |
+
+### Resolvable node fields
+
+Several node configuration fields accept either a literal value or a `{{template}}` string that is resolved at execution time against the current context (inputs + upstream outputs). These fields are: `agent`, `timeout_seconds`, `on_failure`, `workspace`, `permission_mode`, `retry.max_attempts`, `retry.delay_seconds`, `loop.max_iterations`, and `loop.fresh_context`. For example:
+
+```yaml
+- id: deploy
+  agent: "{{deploy_agent}}"
+  timeout_seconds: "{{timeout}}"
+  retry:
+    max_attempts: "{{max_retries}}"
+```
+
+When the value is a template string, it is resolved just before the node executes and converted to the expected type (e.g., integer for `timeout_seconds`). Resolution failure or type conversion failure is a node error.
 
 ### Workspace vs user directories
 
@@ -186,6 +215,38 @@ A node can reference another workflow file instead of an agent:
   inputs:
     repo_path: "{{repo_path}}"
     environment: "staging"
+  output: deploy_result
+```
+
+### Input passing and defaults
+
+The `inputs:` mapping passes values from the parent context into the child workflow's declared inputs. The engine validates inputs at dispatch time:
+
+- **Required inputs without defaults** must be provided in the `inputs:` mapping. Missing ones produce an `EngineError.missingRequiredInput`.
+- **Required inputs with defaults** are filled from the default value if omitted from `inputs:`. The default is itself a template string resolved in the child workflow's context at startup.
+- If a child workflow has defaults for all its required inputs, the `inputs:` mapping can be omitted entirely — all values come from defaults.
+
+```yaml
+# Child workflow: workflows/deploy.yml
+input:
+  - name: repo_path
+    type: string
+    required: true               # no default — caller must provide
+  - name: environment
+    type: string
+    required: true
+    default: "staging"           # default — caller may omit
+  - name: notify
+    type: string
+    required: true
+    default: "true"              # default — caller may omit
+
+# Parent node — only repo_path is required, others use defaults
+- id: deploy
+  workflow: workflows/deploy.yml
+  depends_on: [approve]
+  inputs:
+    repo_path: "{{repo_path}}"
   output: deploy_result
 ```
 

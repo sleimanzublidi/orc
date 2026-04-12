@@ -127,14 +127,23 @@ External dependencies:
 ```
 Workflow            — top-level: name, description, inputs, nodes, output mapping,
                       cleanupPolicy: CleanupPolicy
-WorkflowInput       — name, type (string), required flag
-Node                — id, agent, prompt, command, depends_on, output alias,
-                      when, loop config, interactive mode, retry/timeout/on_failure,
-                      nested workflow ref + inputs, workspaceMode: WorkspaceMode?,
-                      permissionMode: PermissionMode?
+WorkflowInput       — name, type (string), required flag, defaultValue: String?
+                      Default is a raw template string resolved at workflow start
+Node                — id, prompt, command, depends_on, output alias,
+                      when, loop config, interactive mode,
+                      nested workflow ref + inputs, workspaceMode: WorkspaceMode?
+                      Resolvable fields (literal or {{template}}):
+                        agent: Resolvable<String>?,
+                        timeoutSeconds: Resolvable<Int>?,
+                        onFailure: Resolvable<FailureStrategy>,
+                        permissionMode: Resolvable<PermissionMode>?,
+                        retryConfig: RetryConfig?, loopConfig: LoopConfig?
 InteractiveMode     — enum: .session, .prompt(message:)
-LoopConfig          — until (evaluator name), max_iterations, fresh_context
-RetryConfig         — max_attempts, delay_seconds
+LoopConfig          — until (evaluator name),
+                      maxIterations: Resolvable<Int>,
+                      freshContext: Resolvable<Bool>
+RetryConfig         — maxAttempts: Resolvable<Int>,
+                      delaySeconds: Resolvable<Int>
 FailureStrategy     — enum: .stop, .skip, .continue
 WorkspaceMode       — enum: .shared, .isolated
 PermissionMode      — enum: .defaultMode, .acceptEdits, .full, .plan, .bypassPermissions
@@ -156,6 +165,13 @@ LogEntry            — node_execution_id, stream (stdout/stderr), file path, ti
 LogStream           — enum: .stdout, .stderr
 RunStats            — run_id, workflow name, status, node count, duration, completed_at
 ProcessResult       — exit code, stdout path, stderr path
+Resolvable<T>       — enum: .literal(T), .template(String)
+                      Generic wrapper for values that may be template strings
+                      Conforms to Sendable, Equatable, Codable
+ResolvableConvertible — protocol for types convertible from resolved strings
+                        Requires init?(rawValue: String)
+                        Conformers: Int, Bool, String, FailureStrategy,
+                        PermissionMode, WorkspaceMode
 ```
 
 ### Protocols
@@ -209,6 +225,25 @@ ExpressionEvaluator — parses and evaluates when: guard expressions
 | `TemplateResolving` | `resolve(template:context:) throws -> String` |
 | `ExpressionEvaluating` | `evaluate(expression:context:) throws -> Bool` |
 
+### Resolvable Types
+
+Defined in the Models module, used by Template for resolution:
+
+```
+Resolvable<T>       — enum: .literal(T) | .template(String)
+                      Represents a value that is either known at parse time
+                      or deferred to execution time as a {{template}} string.
+                      Conforms to Sendable, Equatable, Codable.
+
+ResolvableConvertible — protocol requiring init?(rawValue: String)
+                        Used by TemplateResolver to convert a resolved
+                        template string into the target type T.
+                        Conformers: Int, Bool, String, FailureStrategy,
+                        PermissionMode, WorkspaceMode.
+```
+
+`TemplateResolver` gains a method: `resolve<T: ResolvableConvertible>(resolvable:context:) throws -> T` that resolves `.template` values and converts the result, or returns `.literal` values directly.
+
 ### Errors
 
 ```
@@ -217,6 +252,7 @@ TemplateError
   .malformedTemplate(detail:)    — unclosed {{ or invalid syntax
   .expressionSyntax(detail:)     — malformed when: expression
   .expressionEvaluation(detail:) — runtime eval failure (e.g., missing operand)
+  .invalidConversion(value:targetType:) — resolved string cannot convert to T
 ```
 
 ### Design Notes
@@ -232,6 +268,8 @@ TemplateError
 - Unresolved variable errors
 - Expression evaluation: each operator, precedence, grouping, negation
 - Complex expressions: `{{a.status}} == 'completed' && {{b.status}} == 'completed'`
+- Resolvable resolution: `.literal` returns directly, `.template` resolves and converts
+- Resolvable type conversion: valid string-to-Int, string-to-Bool, invalid conversions throw `.invalidConversion`
 - Edge cases: empty strings, single-quote escaping (`\'`), whitespace in expressions
 
 ---
@@ -263,7 +301,7 @@ ValidationResult    — collection of validation errors/warnings
 - `depends_on` references exist and form a DAG (no circular deps outside loops)
 - `agent` is present for non-interactive, non-workflow nodes
 - `interactive: prompt` nodes have a `message` field
-- `workflow:` nodes have `inputs:` mapping
+- `workflow:` nodes have `inputs:` mapping (optional if child workflow has defaults for all required inputs)
 - Template variables reference valid inputs or upstream node IDs (output and status refs)
 - Output aliases don't collide with node IDs or input names
 - `until:` evaluator names are syntactically valid (resolution happens at runtime)
@@ -494,6 +532,22 @@ CancellationHandler — sends SIGTERM/SIGKILL to running processes
                       Destroys tmux sessions
                       Marks pending nodes as cancelled
 
+ResolvedNodeConfig  — internal struct, produced from Node at dispatch time
+                      All Resolvable fields resolved to concrete values:
+                        agent: String?, timeoutSeconds: Int?,
+                        onFailure: FailureStrategy, permissionMode: PermissionMode?,
+                        retryConfig: ResolvedRetryConfig?,
+                        loopConfig: ResolvedLoopConfig?
+                      Created by NodeDispatcher using TemplateResolver
+
+ResolvedRetryConfig — maxAttempts: Int, delaySeconds: Int
+
+ResolvedLoopConfig  — until: String, maxIterations: Int, freshContext: Bool
+
+DefaultMerger       — fills missing workflow inputs from WorkflowInput.defaultValue
+                      Resolves default template strings against available context
+                      Runs once at workflow start before any node dispatches
+
 WorkspaceManager    — creates workspace directories per run
                       Handles cleanup policies (duration, on_success, always, never)
                       Startup purge of expired workspaces
@@ -527,11 +581,15 @@ EngineError
   .maxIterationsReached(nodeID:count:)
   .dependencyFailed(nodeID:upstream:)  — all deps skipped, node can't run
   .nestedWorkflowFailed(nodeID:detail:) — child workflow execution failed
+  .missingRequiredInput(name:workflow:)  — required input without default not provided by caller
+  .invalidConfigValue(field:value:detail:) — Resolvable resolved to unconvertible value
 ```
 
 ### Design Notes
 
-- `WorkflowEngine` is the single public actor — CLI and future web server both go through it. Internal types (`NodeDispatcher`, `LoopHandler`, etc.) are `internal`.
+- `WorkflowEngine` is the single public actor — CLI and future web server both go through it. Internal types (`NodeDispatcher`, `LoopHandler`, `DefaultMerger`, etc.) are `internal`.
+- **Default merging:** at workflow start (before any node dispatches), `DefaultMerger` iterates the workflow's declared inputs and fills any missing caller-provided values from `WorkflowInput.defaultValue`. Default values are template strings resolved against the available context (other inputs already provided). After merging, the engine validates that all required inputs are present — any still missing produce `.missingRequiredInput`.
+- **Resolvable resolution:** `NodeDispatcher` resolves all `Resolvable` fields on a node just before dispatch, producing a `ResolvedNodeConfig`. Template strings are resolved via `TemplateResolver` and converted to the target type. Conversion failures produce `.invalidConfigValue`.
 - `NodeDispatcher` uses `TaskGroup` to run ready nodes concurrently. As each node completes, it checks which downstream nodes become unblocked and dispatches them. `max_parallel_nodes` is enforced via a semaphore or bounded task group.
 - Dependency satisfaction rule: a node runs if at least one dep completed or failed-with-continue. Skipped only if all deps were skipped.
 - Loop iterations are always sequential within a node. `LoopHandler` owns the iteration cycle: invoke provider → capture output → run evaluator → decide continue/stop.
@@ -553,7 +611,9 @@ EngineError
 - **Interactive session:** fake tmux provider → verify session lifecycle.
 - **Resume:** completed nodes skipped, failed node re-executed, downstream runs. Removed completed node → error. Modified YAML with new nodes → works.
 - **Cancellation:** running nodes get SIGTERM, pending nodes marked cancelled, tmux sessions destroyed.
-- **Nested workflows:** child workflow executes, output flows to parent. Child failure → parent failure. Shared vs isolated workspace.
+- **Nested workflows:** child workflow executes, output flows to parent. Child failure → parent failure. Shared vs isolated workspace. Caller validation: missing required input without default → `.missingRequiredInput`. Inputs with defaults: omitted input filled from default. All defaults → `inputs:` mapping omittable.
+- **Default merging:** workflow with defaults fills missing inputs. Template defaults resolved against provided inputs. Missing required input after merge → error.
+- **Resolvable config:** template `agent` field resolves at dispatch. Template `timeout_seconds` converts to Int. Invalid conversion → `.invalidConfigValue`. Literal values pass through unchanged.
 - **Concurrency:** `max_parallel_nodes` respected — dispatch N nodes, verify no more than N run concurrently (use async semaphore counting in fakes).
 
 ---
