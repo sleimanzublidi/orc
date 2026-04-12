@@ -26,6 +26,7 @@ public struct OrcCommand: AsyncParsableCommand {
             ConfigCommand.self,
             VersionCommand.self,
             MonitorCommand.self,
+            HelpCommand.self,
         ]
     )
 }

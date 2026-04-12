@@ -9,21 +9,22 @@ enum DefaultsWriter {
 
     /// Writes all embedded defaults into the given .orc/ directory.
     /// In force mode, overwrites existing files. Otherwise skips them.
+    /// Help content (help/) is excluded — it is only used at runtime by the help command.
     @discardableResult
     static func write(to orcDir: String, force: Bool = false) throws -> [Action] {
         let fm = FileManager.default
         var actions: [Action] = []
 
-        // Ensure subdirectories exist.
-        for dir in EmbeddedDefaults.directories {
+        // Ensure subdirectories exist (skip help/).
+        for dir in EmbeddedDefaults.directories where !dir.hasPrefix("help") {
             let dirPath = orcDir.appendingPathComponent(dir)
             if !fm.fileExists(atPath: dirPath) {
                 try fm.createDirectory(atPath: dirPath, withIntermediateDirectories: true)
             }
         }
 
-        // Write files.
-        for entry in EmbeddedDefaults.files {
+        // Write files (skip help/).
+        for entry in EmbeddedDefaults.files where !entry.path.hasPrefix("help/") {
             let dstPath = orcDir.appendingPathComponent(entry.path)
 
             // Ensure parent directory exists.
