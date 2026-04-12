@@ -31,7 +31,7 @@ The `parameters:` block on a node passes provider-specific configuration. The `c
 | Key | Values | Default | Description |
 |-----|--------|---------|-------------|
 | `permission_mode` | `default`, `acceptEdits`, `dontAsk`, `plan`, `auto`, `bypassPermissions` | `acceptEdits` | Controls which tools the agent can use without prompting |
-| `bare` | `true` / `false` | `false` | Minimal mode: skips hooks, LSP, CLAUDE.md auto-discovery. Requires `ANTHROPIC_API_KEY` in `.env` |
+| `bare` | `true` / `false` | `false` | Minimal mode: skips hooks, LSP, CLAUDE.md auto-discovery. Requires `ANTHROPIC_API_KEY` in `.orc/.env` |
 | `model` | model alias or full name | (Claude default) | Override the model (e.g., `opus`, `sonnet`) |
 
 Parameter values support `{{template}}` syntax, so a parent workflow can pass provider config to a child:
@@ -43,7 +43,7 @@ parameters:
 
 ### Environment (.env)
 
-Orc loads a `.env` file from the project root (the directory containing `.orc/`) before each workflow run. Variables are passed to all provider child processes. Use this to supply `ANTHROPIC_API_KEY` when using `bare: "true"`.
+Orc loads `.orc/.env` before each workflow run. Variables are passed to all provider child processes. Use this to supply `ANTHROPIC_API_KEY` when using `bare: "true"`.
 
 Process environment variables take precedence over `.env` values.
 
@@ -103,7 +103,7 @@ When combined with `interactive: session`, creates a tmux session running the co
 - Only stdout becomes the node's output.
 - A non-zero exit code causes the node to fail (respecting `retry` and `on_failure` settings).
 - Stderr is logged but not included in the output.
-- Environment variables from `.env` and the process environment are passed to all child processes.
+- Environment variables from `.orc/.env` and the process environment are passed to all child processes.
 
 ## See Also
 

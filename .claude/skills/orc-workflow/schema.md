@@ -61,7 +61,7 @@ The `parameters:` block passes provider-specific configuration to the agent. Eac
 | Key | Values | Default | Description |
 |-----|--------|---------|-------------|
 | `permission_mode` | `default`, `acceptEdits`, `dontAsk`, `plan`, `auto`, `bypassPermissions` | `acceptEdits` | Claude Code `--permission-mode` flag |
-| `bare` | `true` / `false` | `false` | Minimal mode: skips hooks, LSP, CLAUDE.md auto-discovery. Requires `ANTHROPIC_API_KEY` in `.env` |
+| `bare` | `true` / `false` | `false` | Minimal mode: skips hooks, LSP, CLAUDE.md auto-discovery. Requires `ANTHROPIC_API_KEY` in `.orc/.env` |
 | `model` | model alias or full name | (Claude default) | Override the model (e.g., `opus`, `sonnet`, `claude-sonnet-4-6`) |
 
 ### shell / cli-agent parameters
@@ -70,7 +70,7 @@ No provider-specific parameters are currently recognized. Any keys in `parameter
 
 ## Environment (.env)
 
-Orc loads a `.env` file from the project root (the directory containing `.orc/`) before each workflow run. Variables are passed to all provider child processes via `TaskContext.environment`.
+Orc loads `.orc/.env` before each workflow run. Variables are passed to all provider child processes via `TaskContext.environment`.
 
 - Format: `KEY=VALUE` (one per line), `#` comments, quoted values supported.
 - Process environment variables take precedence over `.env` values (no override).

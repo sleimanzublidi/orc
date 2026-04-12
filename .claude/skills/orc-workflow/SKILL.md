@@ -225,7 +225,7 @@ If `orc start` fails for any reason other than "already running":
 - Use `when:` guards for conditional branching — not for sequencing (that's what `depends_on` is for).
 - Use `on_failure: continue` when downstream nodes should still run despite a failure. Use `on_failure: skip` when the node is optional.
 - Keep prompts focused. For `claude-code` nodes, be explicit about what files to read/not read.
-- Use `parameters:` on `claude-code` nodes to pass provider-specific config. Use `permission_mode: dontAsk` when the agent needs to run shell commands autonomously. Use `bare: "true"` for minimal mode (requires `ANTHROPIC_API_KEY` in `.env`). Avoid `bypassPermissions` unless the workflow is fully trusted.
+- Use `parameters:` on `claude-code` nodes to pass provider-specific config. Use `permission_mode: dontAsk` when the agent needs to run shell commands autonomously. Use `bare: "true"` for minimal mode (requires `ANTHROPIC_API_KEY` in `.orc/.env`). Avoid `bypassPermissions` unless the workflow is fully trusted.
 
 ## Examples
 

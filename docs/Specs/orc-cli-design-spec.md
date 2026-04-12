@@ -99,7 +99,7 @@ output:
   - **`prompt`** — the engine pauses the node and displays a `message`. User responds via `orc respond` with text or a file (`--file` flag). No running process. Does not require an `agent` field.
 - **Nested workflows** — a node can reference another workflow file via `workflow:` instead of `agent`/`prompt`. The child workflow receives `inputs:` (optional if all child inputs have defaults) and its final output flows back to the parent via `output:`. The engine validates that required inputs without defaults are provided by the caller. See §4 for input passing, defaults, workspace, and failure semantics.
 - **`parameters`** — a `parameters:` block on a node passes provider-specific key-value pairs. Each provider reads the keys it understands and ignores the rest. For `claude-code`, recognized keys are `permission_mode` (values: `default`, `acceptEdits`, `dontAsk`, `plan`, `auto`, `bypassPermissions`; default `acceptEdits`), `bare` (`"true"`/`"false"`), and `model` (model alias or full name). Parameter values support `{{template}}` syntax.
-- **Environment (`.env`)** — Orc loads a `.env` file from the project root before each run. Variables merge with the process environment (process env wins on conflict) and are passed to all provider child processes via `TaskContext.environment`.
+- **Environment (`.env`)** — Orc loads `.orc/.env` before each run. Variables merge with the process environment (process env wins on conflict) and are passed to all provider child processes via `TaskContext.environment`.
 
 ### Workflow inputs
 

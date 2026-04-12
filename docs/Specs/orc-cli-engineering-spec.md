@@ -554,7 +554,7 @@ WorkspaceManager    — creates workspace directories per run
                       Handles cleanup policies (duration, on_success, always, never)
                       Startup purge of expired workspaces
 
-DotEnvLoader        — loads .env file from project root (KEY=VALUE format)
+DotEnvLoader        — loads .env file from .orc/ directory (KEY=VALUE format)
                       Supports comments, quoted values, inline comments
                       Merges with process environment (process env wins on conflict)
                       Result flows into TaskContext.environment

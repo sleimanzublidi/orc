@@ -283,9 +283,9 @@ public actor WorkflowEngine {
         // Derive repository root from the .orc base path (its parent directory).
         let repoRoot = (workspaceManager.basePath as NSString).deletingLastPathComponent
 
-        // Load .env from the orc project root. Values merge with (but do not
+        // Load .env from the .orc directory. Values merge with (but do not
         // override) the current process environment so explicit env vars win.
-        let dotEnv = DotEnvLoader.load(from: repoRoot + "/.env")
+        let dotEnv = DotEnvLoader.load(from: workspaceManager.basePath + "/.env")
         let environment = ProcessInfo.processInfo.environment.merging(dotEnv) { existing, _ in existing }
 
         // Dispatch nodes.
@@ -390,7 +390,7 @@ public actor WorkflowEngine {
         )
 
         let repoRoot = (workspaceManager.basePath as NSString).deletingLastPathComponent
-        let dotEnv = DotEnvLoader.load(from: repoRoot + "/.env")
+        let dotEnv = DotEnvLoader.load(from: workspaceManager.basePath + "/.env")
         let environment = ProcessInfo.processInfo.environment.merging(dotEnv) { existing, _ in existing }
 
         let dispatcher = NodeDispatcher(
