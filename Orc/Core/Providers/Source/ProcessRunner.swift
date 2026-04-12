@@ -42,7 +42,7 @@ struct ProcessRunner: ProcessRunning, Sendable {
         }
 
         if let workingDirectory {
-            process.currentDirectoryURL = URL(fileURLWithPath: workingDirectory)
+            process.currentDirectoryPath = workingDirectory
         }
 
         // Merge caller-supplied env vars into the current process environment
