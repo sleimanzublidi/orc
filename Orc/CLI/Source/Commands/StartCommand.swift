@@ -237,6 +237,7 @@ extension StartCommand {
 
     private func runCompletionHooks(run: Run, elapsedSeconds: Double) {
         if notify {
+            #if os(macOS)
             let script = Self.notificationScript(run: run, elapsedSeconds: elapsedSeconds)
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
@@ -247,6 +248,9 @@ extension StartCommand {
             } catch {
                 Format.printError("Warning: Failed to send notification: \(error)")
             }
+            #else
+            Format.printError("Warning: --notify is only supported on macOS (osascript not available)")
+            #endif
         }
 
         if let command = onComplete {
