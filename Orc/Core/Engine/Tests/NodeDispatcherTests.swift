@@ -694,6 +694,90 @@ struct NodeDispatcherTests {
         #expect(FileManager.default.fileExists(atPath: expectedPath))
     }
 
+    // MARK: - Template-based onFailure
+
+    @Test("on_failure: template resolving to 'continue' allows downstream to run")
+    func templateOnFailureContinue() async throws {
+        let store = FakeWorkflowStore()
+
+        // A fails but has on_failure: template("{{strategy}}") which resolves to "continue".
+        let failingProvider = FakeAgentProvider(name: "failing")
+        failingProvider.errorToThrow = ProviderError.processFailure(
+            command: "fail", exitCode: 1, stderr: "error"
+        )
+
+        let goodProvider = FakeAgentProvider(name: "good")
+        goodProvider.defaultOutput = "success"
+
+        let registry = ProviderRegistry(providers: [failingProvider, goodProvider])
+
+        let nodes = [
+            Models.Node(
+                id: "A", agent: .literal("failing"), prompt: "fail",
+                onFailure: .template("{{strategy}}")
+            ),
+            Models.Node(
+                id: "B", agent: .literal("good"), prompt: "do B",
+                dependsOn: ["A"]
+            ),
+        ]
+
+        let workflow = Workflow(
+            name: "test",
+            input: [WorkflowInput(name: "strategy", type: "string", required: true)],
+            nodes: nodes
+        )
+        let planner = ExecutionPlanner()
+        let plan = try planner.plan(workflow: workflow)
+
+        let evaluatorRunner = EvaluatorRunner(
+            providers: registry,
+            store: store,
+            templateResolver: TemplateResolver(),
+            processRunner: FakeProcessRunner(),
+            basePath: "/tmp/test-orc"
+        )
+
+        let interactiveHandler = InteractiveHandler(
+            store: store, providers: registry,
+            tmux: FakeTmuxProvider(), templateResolver: TemplateResolver()
+        )
+        let loopHandler = LoopHandler(
+            providers: registry, store: store,
+            evaluatorRunner: evaluatorRunner, templateResolver: TemplateResolver(),
+            tmux: FakeTmuxProvider()
+        )
+
+        let run = Run(
+            id: "test-run", workflowName: "test", workflowFile: "/tmp/test.yml",
+            status: .running, workspacePath: "/tmp/workspace"
+        )
+        _ = try await store.createRun(run)
+
+        let dispatcher = NodeDispatcher(
+            plan: plan, providers: registry, store: store,
+            parser: FakeWorkflowParser(),
+            templateResolver: TemplateResolver(),
+            expressionEvaluator: ExpressionEvaluator(),
+            evaluatorRunner: evaluatorRunner,
+            interactiveHandler: interactiveHandler,
+            loopHandler: loopHandler,
+            maxParallelNodes: 4,
+            repoRoot: "/tmp/repo"
+        )
+
+        // Pass the input so the template "{{strategy}}" resolves to "continue".
+        let result = try await dispatcher.execute(
+            run: run, inputs: ["strategy": "continue"]
+        )
+
+        // Despite A failing, B should have run because A's on_failure resolved
+        // to "continue" at runtime via the template expression.
+        #expect(result.status == .completed)
+        #expect(goodProvider.executedPrompts.count == 1)
+        #expect(goodProvider.executedPrompts[0] == "do B")
+    }
+
     // MARK: - Interactive Session tmuxSession Persistence
 
     @Test("Interactive session node persists tmuxSession in NodeExecution record")

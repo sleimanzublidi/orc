@@ -466,6 +466,43 @@ struct ResolvableParsingTests {
         #expect(workflow.nodes[0].agent == .template("{{agent_name}}"))
     }
 
+    // MARK: - Nested Workflow Without Inputs
+
+    @Test("Workflow node with no inputs mapping parses successfully")
+    func workflowNodeWithoutInputsMapping() throws {
+        // A workflow node that references a child workflow without providing
+        // an inputs mapping should parse successfully. The child may have all
+        // inputs with default values, so no explicit inputs are required.
+        // The engine validates required inputs at runtime.
+        let yaml = """
+        name: "parent"
+        nodes:
+          - id: nest
+            workflow: child.yml
+        """
+
+        let workflow = try parser.parse(yaml: yaml)
+        #expect(workflow.nodes[0].id == "nest")
+        #expect(workflow.nodes[0].workflow == "child.yml")
+        #expect(workflow.nodes[0].inputs == nil)
+    }
+
+    @Test("Workflow node with empty inputs mapping parses successfully")
+    func workflowNodeWithEmptyInputsMapping() throws {
+        let yaml = """
+        name: "parent"
+        nodes:
+          - id: nest
+            workflow: child.yml
+            inputs: {}
+        """
+
+        let workflow = try parser.parse(yaml: yaml)
+        #expect(workflow.nodes[0].id == "nest")
+        #expect(workflow.nodes[0].workflow == "child.yml")
+        #expect(workflow.nodes[0].inputs?.isEmpty == true)
+    }
+
     // MARK: - invalidFieldType Error
 
     @Test("ParserError.invalidFieldType has correct LocalizedError description")

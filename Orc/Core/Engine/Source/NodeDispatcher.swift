@@ -38,6 +38,11 @@ struct NodeDispatcher: Sendable {
         // Initialize mutable execution state.
         var nodeOutputs: [String: String] = completedOutputs
         var nodeStatuses: [String: NodeStatus] = [:]
+        // Stores the runtime-resolved onFailure strategy for each node.
+        // This is populated after each node executes so that dependency
+        // checking and skip cascading use the resolved value rather than
+        // the raw Resolvable (which may be a .template expression).
+        var resolvedOnFailure: [String: FailureStrategy] = [:]
 
         // Merge workflow input defaults into the provided inputs.
         // This ensures that inputs with default values are available even when
@@ -89,7 +94,8 @@ struct NodeDispatcher: Sendable {
             let readyNodes = pendingNodes.filter { nodeID in
                 isNodeReady(
                     nodeID: nodeID,
-                    nodeStatuses: nodeStatuses
+                    nodeStatuses: nodeStatuses,
+                    resolvedOnFailure: resolvedOnFailure
                 )
             }
 
@@ -122,9 +128,12 @@ struct NodeDispatcher: Sendable {
             let snapshotStatuses = nodeStatuses
 
             // Execute the batch using a TaskGroup.
-            let results: [(String, NodeStatus, String?, (any Error)?)] =
+            // Each result includes the resolved onFailure strategy so the
+            // post-batch failure handling uses the runtime-resolved value
+            // instead of the raw Resolvable (which may be a template).
+            let results: [(String, NodeStatus, String?, (any Error)?, FailureStrategy)] =
                 try await withThrowingTaskGroup(
-                    of: (String, NodeStatus, String?, (any Error)?).self
+                    of: (String, NodeStatus, String?, (any Error)?, FailureStrategy).self
                 ) { group in
                     for nodeID in batch {
                         group.addTask {
@@ -138,7 +147,7 @@ struct NodeDispatcher: Sendable {
                         }
                     }
 
-                    var collected: [(String, NodeStatus, String?, (any Error)?)] = []
+                    var collected: [(String, NodeStatus, String?, (any Error)?, FailureStrategy)] = []
                     for try await result in group {
                         collected.append(result)
                     }
@@ -146,8 +155,9 @@ struct NodeDispatcher: Sendable {
                 }
 
             // Apply results to our state.
-            for (nodeID, status, output, _) in results {
+            for (nodeID, status, output, _, resolvedStrategy) in results {
                 nodeStatuses[nodeID] = status
+                resolvedOnFailure[nodeID] = resolvedStrategy
                 pendingNodes.remove(nodeID)
 
                 if status == .completed {
@@ -172,8 +182,7 @@ struct NodeDispatcher: Sendable {
                     // independent branches can still proceed.
                     awaitingNodes.insert(nodeID)
                 } else if status == .failed {
-                    let node = plan.nodesByID[nodeID]
-                    let strategy = node?.onFailure.literalValue ?? .stop
+                    let strategy = resolvedOnFailure[nodeID] ?? .stop
 
                     switch strategy {
                     case .stop:
@@ -203,7 +212,8 @@ struct NodeDispatcher: Sendable {
                         skipDependents(
                             of: nodeID,
                             pendingNodes: &pendingNodes,
-                            nodeStatuses: &nodeStatuses
+                            nodeStatuses: &nodeStatuses,
+                            resolvedOnFailure: resolvedOnFailure
                         )
 
                     case .continue:
@@ -267,16 +277,19 @@ struct NodeDispatcher: Sendable {
 
     /// Executes a single node and returns its result.
     ///
-    /// - Returns: A tuple of (nodeID, status, output, error).
+    /// - Returns: A tuple of (nodeID, status, output, error, resolvedOnFailure).
+    ///   The resolved `FailureStrategy` is included so the caller can use the
+    ///   runtime-resolved value (which handles template expressions) instead of
+    ///   the raw `Resolvable` on the node definition.
     private func executeNode(
         nodeID: String,
         run: Run,
         inputs: [String: String],
         nodeOutputs: [String: String],
         nodeStatuses: [String: NodeStatus]
-    ) async throws -> (String, NodeStatus, String?, (any Error)?) {
+    ) async throws -> (String, NodeStatus, String?, (any Error)?, FailureStrategy) {
         guard let node = plan.nodesByID[nodeID] else {
-            return (nodeID, .failed, nil, EngineError.dependencyFailed(nodeID: nodeID, upstream: "node not found"))
+            return (nodeID, .failed, nil, EngineError.dependencyFailed(nodeID: nodeID, upstream: "node not found"), .stop)
         }
 
         logger.info("[\(nodeID)] running...")
@@ -307,7 +320,8 @@ struct NodeDispatcher: Sendable {
                     )
                     _ = try await store.createNodeExecution(exec)
                     logger.info("[\(nodeID)] skipped (when: condition false)")
-                    return (nodeID, .skipped, nil, nil)
+                    // Use literalValue fallback since config hasn't been resolved yet.
+                    return (nodeID, .skipped, nil, nil, node.onFailure.literalValue ?? .stop)
                 }
             } catch {
                 // when: expression evaluation failure is treated as a node failure.
@@ -322,7 +336,8 @@ struct NodeDispatcher: Sendable {
                     completedAt: Date()
                 )
                 _ = try await store.createNodeExecution(exec)
-                return (nodeID, .failed, nil, error)
+                // Use literalValue fallback since config hasn't been resolved yet.
+                return (nodeID, .failed, nil, error, node.onFailure.literalValue ?? .stop)
             }
         }
 
@@ -346,33 +361,42 @@ struct NodeDispatcher: Sendable {
             } catch {
                 logger.warning("[\(nodeID)] Failed to persist config resolution failure: \(error)")
             }
-            return (nodeID, .failed, nil, error)
+            // Config resolution failed — the onFailure template itself could
+            // not be resolved. Fall back to the literal value or .stop.
+            return (nodeID, .failed, nil, error, node.onFailure.literalValue ?? .stop)
         }
+
+        // All sub-methods return 4-tuples; we append the resolved onFailure
+        // strategy so the caller can use it for failure handling decisions.
 
         // Handle interactive nodes.
         if let interactive = node.interactive {
-            return await executeInteractiveNode(
+            let result = await executeInteractiveNode(
                 node: node, interactive: interactive, run: run, context: context,
                 config: config
             )
+            return (result.0, result.1, result.2, result.3, config.onFailure)
         }
 
         // Handle loop nodes.
         if node.loop != nil {
-            return await executeLoopNode(
+            let result = await executeLoopNode(
                 node: node, run: run, context: context, config: config
             )
+            return (result.0, result.1, result.2, result.3, config.onFailure)
         }
 
         // Handle nested workflow nodes.
         if node.workflow != nil {
-            return await executeNestedWorkflow(
+            let result = await executeNestedWorkflow(
                 node: node, run: run, context: context, config: config
             )
+            return (result.0, result.1, result.2, result.3, config.onFailure)
         }
 
         // Standard single-execution node.
-        return await executeSingleNode(node: node, run: run, context: context, config: config)
+        let result = await executeSingleNode(node: node, run: run, context: context, config: config)
+        return (result.0, result.1, result.2, result.3, config.onFailure)
     }
 
     /// Executes a standard (non-loop, non-interactive) node.
@@ -1003,7 +1027,8 @@ struct NodeDispatcher: Sendable {
     /// - Not all dependencies are skipped (if all skipped, node should be skipped too)
     private func isNodeReady(
         nodeID: String,
-        nodeStatuses: [String: NodeStatus]
+        nodeStatuses: [String: NodeStatus],
+        resolvedOnFailure: [String: FailureStrategy]
     ) -> Bool {
         guard let node = plan.nodesByID[nodeID] else { return false }
 
@@ -1032,8 +1057,7 @@ struct NodeDispatcher: Sendable {
                 break
             case .failed:
                 allSkipped = false
-                let depNode = plan.nodesByID[depID]
-                let strategy = depNode?.onFailure.literalValue ?? .stop
+                let strategy = resolvedOnFailure[depID] ?? .stop
                 switch strategy {
                 case .stop:
                     hasBlockingFailure = true
@@ -1073,7 +1097,8 @@ struct NodeDispatcher: Sendable {
     private func skipDependents(
         of nodeID: String,
         pendingNodes: inout Set<String>,
-        nodeStatuses: inout [String: NodeStatus]
+        nodeStatuses: inout [String: NodeStatus],
+        resolvedOnFailure: [String: FailureStrategy]
     ) {
         guard let deps = plan.dependents[nodeID] else { return }
 
@@ -1089,8 +1114,9 @@ struct NodeDispatcher: Sendable {
                     return true
                 case .failed:
                     // A failed dep with on_failure: .skip counts as unsatisfied.
-                    let upNode = plan.nodesByID[upstreamID]
-                    return upNode?.onFailure == .literal(.skip)
+                    // Use the runtime-resolved strategy rather than the raw
+                    // Resolvable, which may be a .template expression.
+                    return resolvedOnFailure[upstreamID] == .skip
                 default:
                     return false
                 }
@@ -1101,7 +1127,10 @@ struct NodeDispatcher: Sendable {
                 pendingNodes.remove(depID)
 
                 // Recursively check transitive dependents.
-                skipDependents(of: depID, pendingNodes: &pendingNodes, nodeStatuses: &nodeStatuses)
+                skipDependents(
+                    of: depID, pendingNodes: &pendingNodes,
+                    nodeStatuses: &nodeStatuses, resolvedOnFailure: resolvedOnFailure
+                )
             }
         }
     }

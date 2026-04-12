@@ -128,13 +128,12 @@ struct WorkflowParser: WorkflowParsing, Sendable {
                 }
             }
 
-            // 8. Workflow nodes must have an inputs mapping
-            if node.workflow != nil && (node.inputs == nil || node.inputs?.isEmpty == true) {
-                errors.append(ValidationError(
-                    message: "Workflow node must have an inputs mapping",
-                    nodeID: node.id
-                ))
-            }
+            // 8. Workflow node inputs validation
+            // Removed: the parser previously required workflow nodes to have an
+            // inputs mapping. With default values on child workflow inputs, a
+            // parent can omit the inputs mapping entirely if all child inputs
+            // have defaults. The engine validates required inputs at runtime
+            // (in executeNestedWorkflow), which correctly accounts for defaults.
 
             // 9. when: expression syntax check
             if let whenExpr = node.when {
