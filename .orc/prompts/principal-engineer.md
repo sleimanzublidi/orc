@@ -19,7 +19,7 @@ Rank by technical impact and risk.
 
 Format as a markdown file with:
 ```
-# Engineering Ideas — <date>  (Iteration <N>)
+# Engineering Ideas — {{timestamp}}
 
 ## 1. <Title>
 **Impact:** High/Medium/Low
@@ -30,7 +30,6 @@ Format as a markdown file with:
 (repeat for each idea)
 ```
 
-Parse the run info "{{run_info}}" as TIMESTAMP:ITERATION (split on colon).
-Save the file to `{{orc_root}}/self-improve/engineer-ideas-<TIMESTAMP>-<ITERATION>.md`.
+Save the file to `{{orc_root}}/self-improve/engineer-ideas-{{timestamp}}.md`.
 
 Output the full path of the saved file.

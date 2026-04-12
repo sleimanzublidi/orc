@@ -23,7 +23,7 @@ Multiply the three scores to get a composite rank. Select the idea with the high
 
 Format as a markdown file with:
 ```
-# Task Selection — <date>  (Iteration <N>)
+# Task Selection — {{timestamp}}
 
 ## Debate Summary
 (Brief overview of your evaluation process and key arguments)
@@ -42,7 +42,6 @@ Format as a markdown file with:
 **Implementation notes:** ...
 ```
 
-Parse the run info "{{run_info}}" as TIMESTAMP:ITERATION (split on colon).
-Save the file to `{{orc_root}}/self-improve/tasks-<TIMESTAMP>-<ITERATION>.md`.
+Save the file to `{{orc_root}}/self-improve/tasks-{{timestamp}}.md`.
 
 Output the full path of the saved file.

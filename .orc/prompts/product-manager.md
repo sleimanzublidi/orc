@@ -19,7 +19,7 @@ Rank by impact (how much value it delivers to users) and feasibility.
 
 Format as a markdown file with:
 ```
-# Product Ideas — <date>  (Iteration <N>)
+# Product Ideas — {{timestamp}}
 
 ## 1. <Title>
 **Impact:** High/Medium/Low
@@ -30,7 +30,6 @@ Format as a markdown file with:
 (repeat for each idea)
 ```
 
-Parse the run info "{{run_info}}" as TIMESTAMP:ITERATION (split on colon).
-Save the file to `{{orc_root}}/self-improve/product-ideas-<TIMESTAMP>-<ITERATION>.md`.
+Save the file to `{{orc_root}}/self-improve/product-ideas-{{timestamp}}.md`.
 
 Output the full path of the saved file.

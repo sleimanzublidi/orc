@@ -5,11 +5,11 @@ Follow these steps exactly:
 1. **Prepare**:
    - Read CLAUDE.md and CONTRIBUTING.md (if they exist) for conventions and requirements.
    - Read `{{orc_root}}/reviews/known-issues.md` if it exists. Issues listed there have been previously triaged and intentionally accepted — do NOT re-flag them.
-   - Read all existing `iteration-*.md` files in `{{orc_root}}/reviews/` to understand what was found and fixed in prior iterations. Focus on verifying prior fixes and finding new issues — do NOT re-flag issues that were already fixed.
+   - Read all existing review files in `{{orc_root}}/reviews/` to understand what was found and fixed in prior iterations. Focus on verifying prior fixes and finding new issues — do NOT re-flag issues that were already fixed.
 
 2. **Gather changes**:
-   - If prior iteration reports exist in `{{orc_root}}/reviews/`, focus on recent fixes: use `git diff HEAD~1` for the last fix commit. Also check any unresolved findings from prior reports.
-   - If no prior iteration reports exist, review the full branch diff: `git diff main..HEAD` and `git log main..HEAD --oneline`.
+   - If prior review files exist in `{{orc_root}}/reviews/`, focus on recent fixes: use `git diff HEAD~1` for the last fix commit. Also check any unresolved findings from prior reports.
+   - If no prior review files exist, review the full branch diff: `git diff main..HEAD` and `git log main..HEAD --oneline`.
 
 3. **Review**: Analyze changes for:
    - Correctness — logic bugs, off-by-one, nil/null safety, concurrency issues
@@ -26,12 +26,11 @@ Follow these steps exactly:
 
 4. **If zero findings**, output ONLY `APPROVED`. Do NOT write a review file.
 
-5. **Save review**: Record the start timestamp with `date '+%Y%m%d-%H%M%S'`.
-   Determine the iteration number by counting existing `iteration-*.md` files in `{{orc_root}}/reviews/` (first run = 1).
-   Create `{{orc_root}}/reviews/` if needed. Write to `{{orc_root}}/reviews/iteration-<TIMESTAMP>-<N>.md`:
+5. **Save review**: Record the timestamp with `date '+%Y%m%d-%H%M%S'`.
+   Create `{{orc_root}}/reviews/` if needed. Write to `{{orc_root}}/reviews/review-<TIMESTAMP>.md`:
 
    ```
-   # Code Review — Iteration N
+   # Code Review — <TIMESTAMP>
    **Branch:** (name) | **Timestamp:** (date/time)
 
    ## Findings

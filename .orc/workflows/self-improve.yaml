@@ -9,14 +9,11 @@ description: Autonomous self-improvement cycle that generates product and engine
 nodes:
   - id: setup
     command: |
-      TIMESTAMP=$(date '+%Y%m%d-%H%M%S')
       BRANCH="self-improve/$(date +%Y-%m-%d)"
       git checkout -b "$BRANCH" 2>/dev/null || git checkout "$BRANCH"
       mkdir -p {{orc_root}}/self-improve
-      LAST=$(ls {{orc_root}}/self-improve/product-ideas-*.md 2>/dev/null | sed 's/.*-\([0-9]*\)\.md/\1/' | sort -n | tail -1)
-      ITERATION=$(( ${LAST:-0} + 1 ))
-      echo "${TIMESTAMP}:${ITERATION}"
-    output: run_info
+      date '+%Y%m%d-%H%M%S'
+    output: timestamp
 
   - id: codebase-summary
     agent: claude-code
