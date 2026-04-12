@@ -1,0 +1,65 @@
+import Hummingbird
+import Engine
+import Models
+import Foundation
+
+func jsonResponse<T: Encodable>(_ value: T) throws -> Response {
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    let data = try encoder.encode(value)
+    return Response(
+        status: .ok,
+        headers: [.contentType: "application/json"],
+        body: .init(byteBuffer: .init(data: data))
+    )
+}
+
+func htmlResponse(_ html: String) -> Response {
+    Response(
+        status: .ok,
+        headers: [.contentType: "text/html; charset=utf-8"],
+        body: .init(byteBuffer: .init(string: html))
+    )
+}
+
+func registerAPIRoutes(on router: Router<BasicRequestContext>, engine: any OrcEngineProviding) {
+    let api = router.group("api")
+    addHealthRoutes(to: api)
+    addRunRoutes(to: api, engine: engine)
+    addLogRoutes(to: api, engine: engine)
+    addStatsRoutes(to: api, engine: engine)
+    addCatalogRoutes(to: api, engine: engine)
+    addEventRoutes(to: api, engine: engine)
+}
+
+func registerPageRoutes(on router: Router<BasicRequestContext>, engine: any OrcEngineProviding) {
+    router.get("/") { _, _ -> Response in
+        Response(status: .seeOther, headers: [.location: "/runs"])
+    }
+
+    router.get("runs") { request, _ -> Response in
+        let statusParam: String? = request.uri.queryParameters["status"].map(String.init)
+        let partialParam: String? = request.uri.queryParameters["partial"].map(String.init)
+        let status: RunStatus? = statusParam.flatMap { RunStatus(rawValue: $0) }
+        let runs = try await engine.listRuns(status: status)
+
+        if partialParam == "true" {
+            return htmlResponse(TemplateRenderer.renderRunsList(runs))
+        }
+
+        let content = TemplateRenderer.renderRunsPage(runs, statusFilter: statusParam)
+        let page = TemplateRenderer.renderPageShell(title: "Runs", content: content)
+        return htmlResponse(page)
+    }
+
+    router.get("runs/:id") { _, context -> Response in
+        let id = try context.parameters.require("id")
+        guard let run = try await engine.getStatus(runID: id) else {
+            throw HTTPError(.notFound, message: "Run not found")
+        }
+        let nodes = try await engine.getNodeExecutions(runID: id, nodeID: nil)
+        let content = TemplateRenderer.renderRunDetail(run, nodes: nodes)
+        let page = TemplateRenderer.renderPageShell(title: run.workflowName, content: content)
+        return htmlResponse(page)
+    }
+}

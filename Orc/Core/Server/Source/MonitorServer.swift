@@ -1,0 +1,60 @@
+import Hummingbird
+import Engine
+import Models
+import Foundation
+import Logging
+
+public actor MonitorServer {
+    private let engine: any OrcEngineProviding
+    private let host: String
+    private let port: Int
+    private let logger: Logger
+    private var serverTask: Task<Void, any Error>?
+
+    public nonisolated var url: URL {
+        URL(string: "http://\(host == "0.0.0.0" ? "localhost" : host):\(port)")!
+    }
+
+    public init(engine: any OrcEngineProviding, host: String = "127.0.0.1", port: Int = 9621) {
+        self.engine = engine
+        self.host = host
+        self.port = port
+        self.logger = Logger(label: "orc.server")
+    }
+
+    public func start() async throws {
+        let router = Router()
+
+        // Static file serving from bundled resources
+        if let resourcePath = Bundle.module.resourcePath {
+            router.addMiddleware {
+                FileMiddleware(resourcePath)
+            }
+        }
+
+        // Register routes
+        registerAPIRoutes(on: router, engine: engine)
+        registerPageRoutes(on: router, engine: engine)
+
+        let app = Application(
+            router: router,
+            configuration: .init(address: .hostname(host, port: port)),
+            logger: logger
+        )
+
+        logger.info("Starting orc monitor at \(url.absoluteString)")
+
+        serverTask = Task {
+            try await app.runService()
+        }
+
+        // Give the server a moment to bind
+        try await Task.sleep(for: .milliseconds(200))
+    }
+
+    public func stop() async {
+        serverTask?.cancel()
+        serverTask = nil
+        logger.info("orc monitor stopped")
+    }
+}

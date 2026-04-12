@@ -3,6 +3,7 @@ import Engine
 import Foundation
 import Logging
 import Models
+import Server
 
 struct StartCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
@@ -30,6 +31,9 @@ struct StartCommand: AsyncParsableCommand {
 
     @Option(name: .long, help: "Shell command to execute when the run completes.")
     var onComplete: String?
+
+    @Flag(name: .long, help: "Open browser monitor for this run.")
+    var monitor: Bool = false
 
     @Argument(parsing: .allUnrecognized, help: .hidden)
     var rawInput: [String] = []
@@ -63,6 +67,18 @@ struct StartCommand: AsyncParsableCommand {
                 engine: engine, workflowFile: resolvedFile
             )
 
+            // Start monitor server if requested.
+            var monitorServer: MonitorServer?
+            if monitor {
+                let server = MonitorServer(engine: engine)
+                do {
+                    try await server.start()
+                    monitorServer = server
+                } catch {
+                    Format.printError("Warning: Could not start monitor server — \(error)")
+                }
+            }
+
             print("Running workflow \(resolvedFile)")
             let startTime = Date()
             let run = try await engine.start(
@@ -73,6 +89,22 @@ struct StartCommand: AsyncParsableCommand {
             let elapsedSeconds = Date().timeIntervalSince(startTime)
 
             defer { runCompletionHooks(run: run, elapsedSeconds: elapsedSeconds) }
+
+            // Open browser to the run detail page.
+            if let server = monitorServer {
+                let runURL = server.url.appendingPathComponent("runs/\(run.id)")
+                #if os(macOS)
+                let browserProcess = Process()
+                browserProcess.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+                browserProcess.arguments = [runURL.absoluteString]
+                try? browserProcess.run()
+                #elseif os(Linux)
+                let browserProcess = Process()
+                browserProcess.executableURL = URL(fileURLWithPath: "/usr/bin/xdg-open")
+                browserProcess.arguments = [runURL.absoluteString]
+                try? browserProcess.run()
+                #endif
+            }
 
             print("Workflow run \(run.id) \(Format.statusIndicator(run.status))")
             if run.status == .failed {
@@ -94,6 +126,14 @@ struct StartCommand: AsyncParsableCommand {
                 if let lastOutput = executions.last(where: { $0.status == .completed })?.output {
                     print("Output: \(lastOutput)")
                 }
+            }
+
+            // Keep monitor alive briefly for review, then shut down.
+            if let server = monitorServer {
+                let serverURL = server.url
+                print("Monitor available at \(serverURL.absoluteString)/runs/\(run.id) — shutting down in 30s...")
+                try? await Task.sleep(for: .seconds(30))
+                await server.stop()
             }
         } catch let error as ExitCode {
             throw error

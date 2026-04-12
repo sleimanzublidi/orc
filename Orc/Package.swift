@@ -13,6 +13,7 @@ let package = Package(
         .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.0"),
         .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
+        .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.0.0"),
     ],
     targets: [
         // Models — leaf, no dependencies
@@ -105,6 +106,31 @@ let package = Package(
             path: "Core/Engine/Tests"
         ),
 
+        // Server — depends on Engine, Models, Hummingbird, swift-log
+        .target(
+            name: "Server",
+            dependencies: [
+                "Engine",
+                "Models",
+                .product(name: "Hummingbird", package: "hummingbird"),
+                .product(name: "Logging", package: "swift-log"),
+            ],
+            path: "Core/Server",
+            exclude: ["Tests"],
+            sources: ["Source"],
+            resources: [.copy("Resources")]
+        ),
+        .testTarget(
+            name: "ServerTests",
+            dependencies: [
+                "Server",
+                "Models",
+                "Engine",
+                .product(name: "HummingbirdTesting", package: "hummingbird"),
+            ],
+            path: "Core/Server/Tests"
+        ),
+
         // Build tool that embeds CLI/Resources/Defaults into Swift source
         .executableTarget(
             name: "EmbedDefaultsTool",
@@ -123,6 +149,7 @@ let package = Package(
             dependencies: [
                 "Engine",
                 "Models",
+                "Server",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Logging", package: "swift-log"),
             ],
