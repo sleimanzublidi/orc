@@ -9,6 +9,7 @@ public struct Node: Sendable, Equatable, Codable {
     public let id: String
     public let agent: Resolvable<String>?
     public let prompt: String?
+    public let promptFile: String?
     public let command: String?
     public let dependsOn: [String]
     public let output: String?
@@ -27,6 +28,7 @@ public struct Node: Sendable, Equatable, Codable {
         id: String,
         agent: Resolvable<String>? = nil,
         prompt: String? = nil,
+        promptFile: String? = nil,
         command: String? = nil,
         dependsOn: [String] = [],
         output: String? = nil,
@@ -44,6 +46,7 @@ public struct Node: Sendable, Equatable, Codable {
         self.id = id
         self.agent = agent
         self.prompt = prompt
+        self.promptFile = promptFile
         self.command = command
         self.dependsOn = dependsOn
         self.output = output

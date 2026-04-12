@@ -933,4 +933,52 @@ struct NodeDispatcherTests {
         #expect(executions.count == 1)
         #expect(executions[0].tmuxSession == nil)
     }
+
+    // MARK: - prompt_file
+
+    @Test("Node reads prompt from file when prompt_file is set")
+    func promptFileReadsFromFile() async throws {
+        // Write a prompt to a temp file.
+        let tmpDir = NSTemporaryDirectory()
+        let promptPath = (tmpDir as NSString).appendingPathComponent("test-prompt-\(UUID().uuidString).md")
+        try "Summarize the project".write(toFile: promptPath, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: promptPath) }
+
+        let fakeProvider = FakeAgentProvider(name: "fake")
+        fakeProvider.defaultOutput = "summary-result"
+        let store = FakeWorkflowStore()
+
+        let nodes = [Models.Node(id: "A", agent: .literal("fake"), promptFile: promptPath)]
+        let (dispatcher, _, run) = try makeDispatcher(
+            nodes: nodes, fakeProvider: fakeProvider, store: store
+        )
+        _ = try await store.createRun(run)
+
+        let result = try await dispatcher.execute(run: run, inputs: [:])
+        #expect(result.status == .completed)
+        // Verify the provider received the file contents as the prompt.
+        #expect(fakeProvider.executedPrompts.last == "Summarize the project")
+    }
+
+    @Test("prompt_file path supports template variables")
+    func promptFileWithTemplate() async throws {
+        let tmpDir = NSTemporaryDirectory()
+        let promptPath = (tmpDir as NSString).appendingPathComponent("test-prompt-\(UUID().uuidString).md")
+        try "Hello from file".write(toFile: promptPath, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: promptPath) }
+
+        let fakeProvider = FakeAgentProvider(name: "fake")
+        fakeProvider.defaultOutput = "done"
+        let store = FakeWorkflowStore()
+
+        let nodes = [Models.Node(id: "A", agent: .literal("fake"), promptFile: "{{prompt_path}}")]
+        let (dispatcher, _, run) = try makeDispatcher(
+            nodes: nodes, fakeProvider: fakeProvider, store: store
+        )
+        _ = try await store.createRun(run)
+
+        let result = try await dispatcher.execute(run: run, inputs: ["prompt_path": promptPath])
+        #expect(result.status == .completed)
+        #expect(fakeProvider.executedPrompts.last == "Hello from file")
+    }
 }

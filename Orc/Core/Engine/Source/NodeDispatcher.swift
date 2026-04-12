@@ -418,6 +418,9 @@ struct NodeDispatcher: Sendable {
                 resolvedPrompt = try templateResolver.resolve(template: command, context: context)
             } else if let prompt = node.prompt {
                 resolvedPrompt = try templateResolver.resolve(template: prompt, context: context)
+            } else if let promptFile = node.promptFile {
+                let resolvedPath = try templateResolver.resolve(template: promptFile, context: context)
+                resolvedPrompt = try String(contentsOfFile: resolvedPath, encoding: .utf8)
             } else {
                 resolvedPrompt = ""
             }

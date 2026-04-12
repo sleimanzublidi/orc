@@ -299,6 +299,7 @@ struct WorkflowParser: WorkflowParsing, Sendable {
 
         let agent = mapResolvableString(dict, key: "agent")
         var prompt = dict["prompt"] as? String
+        let promptFile = dict["prompt_file"] as? String
         let command = dict["command"] as? String
 
         // depends_on (array of strings)
@@ -384,6 +385,7 @@ struct WorkflowParser: WorkflowParsing, Sendable {
             id: id,
             agent: agent,
             prompt: prompt,
+            promptFile: promptFile,
             command: command,
             dependsOn: dependsOn,
             output: output,
@@ -558,6 +560,7 @@ struct WorkflowParser: WorkflowParsing, Sendable {
     private func collectTemplateStrings(from node: Models.Node) -> [String] {
         var templates: [String] = []
         if let prompt = node.prompt { templates.append(prompt) }
+        if let promptFile = node.promptFile { templates.append(promptFile) }
         if let when = node.when { templates.append(when) }
         if let command = node.command { templates.append(command) }
         if let inputs = node.inputs {

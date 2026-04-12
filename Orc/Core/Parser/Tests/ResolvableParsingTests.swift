@@ -515,4 +515,35 @@ struct ResolvableParsingTests {
         #expect(error.description == "[step1] Field 'timeout_seconds' has invalid type; expected integer or template string")
         #expect(error.localizedDescription == error.description)
     }
+
+    // MARK: - prompt_file
+
+    @Test("prompt_file is parsed from YAML")
+    func promptFileIsParsed() throws {
+        let yaml = """
+        name: test
+        nodes:
+          - id: step1
+            agent: claude-code
+            prompt_file: "{{orc_root}}/prompts/review.md"
+        """
+        let workflow = try parser.parse(yaml: yaml)
+        #expect(workflow.nodes[0].promptFile == "{{orc_root}}/prompts/review.md")
+        #expect(workflow.nodes[0].prompt == nil)
+    }
+
+    @Test("prompt takes precedence over prompt_file")
+    func promptTakesPrecedenceOverPromptFile() throws {
+        let yaml = """
+        name: test
+        nodes:
+          - id: step1
+            agent: claude-code
+            prompt: "inline prompt"
+            prompt_file: "/some/file.md"
+        """
+        let workflow = try parser.parse(yaml: yaml)
+        #expect(workflow.nodes[0].prompt == "inline prompt")
+        #expect(workflow.nodes[0].promptFile == "/some/file.md")
+    }
 }
