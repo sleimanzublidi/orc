@@ -73,7 +73,7 @@ Runs a shell command and captures stdout as the node output.
 
 Use the `command` field instead of `prompt` for shell nodes. Template variables are resolved before execution.
 
-**How it works:** Passes the command to the configured shell via its `-c` flag. Default shell is `/bin/zsh`.
+**How it works:** Passes the command to the configured shell via its `-c` flag. Default shell is `/bin/zsh` on macOS and `/bin/sh` on Linux.
 
 Shell nodes do not use any `parameters:` keys. Any keys in the `parameters:` block are ignored.
 

@@ -504,7 +504,7 @@ providers:
     command: "aider --message '{{prompt}}'"
     interactive_command: "aider"
   shell:
-    default_shell: /bin/zsh
+    default_shell: /bin/zsh          # /bin/sh on Linux
 ```
 
 Nodes reference custom agents by name: `agent: codex`, `agent: aider`.
