@@ -215,7 +215,8 @@ struct LocalizedErrorTests {
             interactiveHandler: interactiveHandler,
             loopHandler: loopHandler,
             maxParallelNodes: 4,
-            repoRoot: "/tmp/repo"
+            repoRoot: "/tmp/repo",
+            environment: [:]
         )
 
         let result = try await dispatcher.execute(run: run, inputs: [:])

@@ -64,7 +64,8 @@ struct DefaultMergingTests {
             interactiveHandler: interactiveHandler,
             loopHandler: loopHandler,
             maxParallelNodes: 4,
-            repoRoot: "/tmp/repo"
+            repoRoot: "/tmp/repo",
+            environment: [:]
         )
 
         return (dispatcher, store, run)

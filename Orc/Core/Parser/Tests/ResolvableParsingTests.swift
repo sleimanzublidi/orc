@@ -176,38 +176,40 @@ struct ResolvableParsingTests {
         #expect(workflow.nodes[0].workspaceMode == .template("{{ws_mode}}"))
     }
 
-    // MARK: - Enum Fields (permission_mode)
+    // MARK: - Parameters (provider-specific key-value pairs)
 
-    @Test("Literal permission_mode parses as .literal")
-    func literalPermissionMode() throws {
+    @Test("Literal parameter parses as .literal")
+    func literalParameter() throws {
         let yaml = """
         name: "test"
         nodes:
           - id: step1
             agent: claude-code
             prompt: "Do work"
-            permission_mode: full
+            parameters:
+              permission_mode: dontAsk
         """
 
         let workflow = try parser.parse(yaml: yaml)
-        #expect(workflow.nodes[0].permissionMode == .literal(.full))
+        #expect(workflow.nodes[0].parameters["permission_mode"] == .literal("dontAsk"))
     }
 
-    @Test("Template permission_mode parses as .template")
-    func templatePermissionMode() throws {
+    @Test("Template parameter parses as .template")
+    func templateParameter() throws {
         let yaml = """
         name: "test"
         nodes:
           - id: step1
             agent: claude-code
             prompt: "Do work"
-            permission_mode: "{{perm}}"
+            parameters:
+              permission_mode: "{{perm}}"
         input:
           - name: perm
         """
 
         let workflow = try parser.parse(yaml: yaml)
-        #expect(workflow.nodes[0].permissionMode == .template("{{perm}}"))
+        #expect(workflow.nodes[0].parameters["permission_mode"] == .template("{{perm}}"))
     }
 
     // MARK: - Loop Config

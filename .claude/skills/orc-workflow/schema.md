@@ -46,23 +46,35 @@ Known types: `string`, `file`, `bool`.
 | `workflow` | String | No | nil | Path to a nested workflow file. Mutually exclusive with `agent`/`command` |
 | `inputs` | {String: String} | No | nil | Input mapping for nested workflow nodes. Values are template strings. Required when `workflow` is set unless the child workflow defines `default` values for all its inputs |
 | `workspace` | `"shared"` / `"isolated"` | No | `"shared"` | Workspace mode for nested workflows |
-| `permission_mode` | PermissionMode | No | `"acceptEdits"` | Claude Code `--permission-mode`. Only applies to `claude-code` agent nodes |
+| `parameters` | {String: String} | No | `{}` | Provider-specific key-value pairs. Values support `{{template}}` syntax. See Provider Parameters below |
 
-**Template-compatible config fields:** `agent`, `timeout_seconds`, `on_failure`, `workspace`, and `permission_mode` accept `{{template}}` strings in addition to literal values. The template is resolved before the value is interpreted.
+**Template-compatible config fields:** `agent`, `timeout_seconds`, `on_failure`, `workspace`, and values inside `parameters` accept `{{template}}` strings in addition to literal values. The template is resolved before the value is interpreted.
 
 **Constraint:** A node must have at least one of: `agent`, `command`, `workflow`, or `interactive: prompt`.
 
-## PermissionMode
+## Provider Parameters
 
-Controls which tools the Claude Code agent can use without prompting.
+The `parameters:` block passes provider-specific configuration to the agent. Each provider reads the keys it understands and ignores the rest.
 
-| Value | Behavior |
-|-------|----------|
-| `"default"` | Claude Code default permission handling |
-| `"acceptEdits"` | Auto-approve file edits and common filesystem commands (default for orc) |
-| `"full"` | Auto-approve all tools including shell commands |
-| `"plan"` | Plan-only mode — no edits or execution |
-| `"bypassPermissions"` | Bypass all permission checks (equivalent to `--dangerously-skip-permissions`) |
+### claude-code parameters
+
+| Key | Values | Default | Description |
+|-----|--------|---------|-------------|
+| `permission_mode` | `default`, `acceptEdits`, `dontAsk`, `plan`, `auto`, `bypassPermissions` | `acceptEdits` | Claude Code `--permission-mode` flag |
+| `bare` | `true` / `false` | `false` | Minimal mode: skips hooks, LSP, CLAUDE.md auto-discovery. Requires `ANTHROPIC_API_KEY` in `.env` |
+| `model` | model alias or full name | (Claude default) | Override the model (e.g., `opus`, `sonnet`, `claude-sonnet-4-6`) |
+
+### shell / cli-agent parameters
+
+No provider-specific parameters are currently recognized. Any keys in `parameters:` are ignored.
+
+## Environment (.env)
+
+Orc loads a `.env` file from the project root (the directory containing `.orc/`) before each workflow run. Variables are passed to all provider child processes via `TaskContext.environment`.
+
+- Format: `KEY=VALUE` (one per line), `#` comments, quoted values supported.
+- Process environment variables take precedence over `.env` values (no override).
+- Use `.env` to supply `ANTHROPIC_API_KEY` when using `bare: true`.
 
 ## LoopConfig
 

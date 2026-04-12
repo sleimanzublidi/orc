@@ -30,7 +30,7 @@ struct LoopHandler: Sendable {
     ///   - loopConfig: The resolved loop configuration (until evaluator, max_iterations, fresh_context).
     ///   - agentName: The resolved agent name for this node.
     ///   - timeoutSeconds: The resolved timeout for provider execution.
-    ///   - permissionMode: The resolved permission mode for provider execution.
+    ///   - parameters: The resolved provider-specific parameters.
     ///   - retryConfig: The resolved retry configuration for per-iteration retries.
     /// - Returns: The output from the final iteration.
     /// - Throws: `EngineError.maxIterationsReached` if the loop exhausts all iterations
@@ -42,7 +42,7 @@ struct LoopHandler: Sendable {
         loopConfig: ResolvedLoopConfig,
         agentName: String,
         timeoutSeconds: Int?,
-        permissionMode: PermissionMode?,
+        parameters: [String: String],
         retryConfig: ResolvedRetryConfig?
     ) async throws -> TaskOutput {
         let provider = try providers.provider(named: agentName)
@@ -100,7 +100,7 @@ struct LoopHandler: Sendable {
                     resolvedPrompt: resolvedPrompt, context: currentContext,
                     iteration: iteration, execID: execID,
                     timeoutSeconds: timeoutSeconds,
-                    permissionMode: permissionMode,
+                    parameters: parameters,
                     retryConfig: retryConfig
                 )
             } catch {
@@ -135,8 +135,8 @@ struct LoopHandler: Sendable {
                 outputs: evalOutputs,
                 nodeStatuses: currentContext.nodeStatuses,
                 repoRoot: currentContext.repoRoot,
-
-                workspacePath: currentContext.workspacePath
+                workspacePath: currentContext.workspacePath,
+                environment: currentContext.environment
             )
 
             // Run the evaluator. If it throws, treat as node failure (not "false").
@@ -172,8 +172,8 @@ struct LoopHandler: Sendable {
                 outputs: nextOutputs,
                 nodeStatuses: currentContext.nodeStatuses,
                 repoRoot: currentContext.repoRoot,
-
-                workspacePath: currentContext.workspacePath
+                workspacePath: currentContext.workspacePath,
+                environment: currentContext.environment
             )
         }
 
@@ -202,7 +202,7 @@ struct LoopHandler: Sendable {
         iteration: Int,
         execID: String,
         timeoutSeconds: Int?,
-        permissionMode: PermissionMode?,
+        parameters: [String: String],
         retryConfig: ResolvedRetryConfig?
     ) async throws -> TaskOutput {
         let maxAttempts = retryConfig?.maxAttempts ?? 1
@@ -250,7 +250,7 @@ struct LoopHandler: Sendable {
                 // Standard (non-interactive) execution.
                 return try await provider.execute(
                     prompt: resolvedPrompt, context: context,
-                    timeout: timeoutSeconds, permissionMode: permissionMode
+                    timeout: timeoutSeconds, parameters: parameters
                 )
             } catch {
                 lastError = error

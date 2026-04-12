@@ -230,8 +230,8 @@ struct EvaluatorRunner: EvaluatorProviding, Sendable {
             outputs: resolvedOutputs,
             nodeStatuses: context.nodeStatuses,
             repoRoot: context.repoRoot,
-
-            workspacePath: context.workspacePath
+            workspacePath: context.workspacePath,
+            environment: context.environment
         )
 
         // Resolve {{last_output}} and any other template variables in the prompt.
@@ -253,7 +253,7 @@ struct EvaluatorRunner: EvaluatorProviding, Sendable {
 
         let output: TaskOutput
         do {
-            output = try await provider.execute(prompt: resolvedPrompt, context: resolvedContext, timeout: nil, permissionMode: nil)
+            output = try await provider.execute(prompt: resolvedPrompt, context: resolvedContext, timeout: nil, parameters: [:])
         } catch {
             throw EngineError.evaluatorFailed(
                 name: definition.name,
@@ -301,8 +301,8 @@ struct EvaluatorRunner: EvaluatorProviding, Sendable {
             outputs: resolvedOutputs,
             nodeStatuses: context.nodeStatuses,
             repoRoot: context.repoRoot,
-
-            workspacePath: context.workspacePath
+            workspacePath: context.workspacePath,
+            environment: context.environment
         )
 
         // Resolve template variables in the command.
@@ -361,8 +361,8 @@ struct EvaluatorRunner: EvaluatorProviding, Sendable {
             outputs: resolvedOutputs,
             nodeStatuses: context.nodeStatuses,
             repoRoot: context.repoRoot,
-
-            workspacePath: context.workspacePath
+            workspacePath: context.workspacePath,
+            environment: context.environment
         )
 
         let resolvedPath = try templateResolver.resolve(

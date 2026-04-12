@@ -10,7 +10,7 @@ struct ResolvedNodeConfig: Sendable {
     let timeoutSeconds: Int?
     let onFailure: FailureStrategy
     let workspaceMode: WorkspaceMode?
-    let permissionMode: PermissionMode?
+    let parameters: [String: String]
     let retry: ResolvedRetryConfig?
     let loop: ResolvedLoopConfig?
 }

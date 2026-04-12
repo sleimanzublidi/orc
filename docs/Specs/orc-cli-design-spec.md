@@ -98,7 +98,8 @@ output:
   - **`session`** — launches the agent in a tmux session. User attaches via `orc attach`. Requires `agent` field. Used for AI agents or tools that need an ongoing terminal session. Can be combined with `loop` — each loop iteration spawns a new tmux session, and the user re-attaches each time (see §7.4).
   - **`prompt`** — the engine pauses the node and displays a `message`. User responds via `orc respond` with text or a file (`--file` flag). No running process. Does not require an `agent` field.
 - **Nested workflows** — a node can reference another workflow file via `workflow:` instead of `agent`/`prompt`. The child workflow receives `inputs:` (optional if all child inputs have defaults) and its final output flows back to the parent via `output:`. The engine validates that required inputs without defaults are provided by the caller. See §4 for input passing, defaults, workspace, and failure semantics.
-- **`permission_mode`** — controls the Claude Code `--permission-mode` flag for `claude-code` agent nodes. Values: `default`, `acceptEdits`, `full`, `plan`, `bypassPermissions`. Defaults to `acceptEdits` when omitted. Only meaningful for `claude-code` nodes; ignored by other providers.
+- **`parameters`** — a `parameters:` block on a node passes provider-specific key-value pairs. Each provider reads the keys it understands and ignores the rest. For `claude-code`, recognized keys are `permission_mode` (values: `default`, `acceptEdits`, `dontAsk`, `plan`, `auto`, `bypassPermissions`; default `acceptEdits`), `bare` (`"true"`/`"false"`), and `model` (model alias or full name). Parameter values support `{{template}}` syntax.
+- **Environment (`.env`)** — Orc loads a `.env` file from the project root before each run. Variables merge with the process environment (process env wins on conflict) and are passed to all provider child processes via `TaskContext.environment`.
 
 ### Workflow inputs
 
@@ -113,7 +114,7 @@ Each entry in `input:` has these fields:
 
 ### Resolvable node fields
 
-Several node configuration fields accept either a literal value or a `{{template}}` string that is resolved at execution time against the current context (inputs + upstream outputs). These fields are: `agent`, `timeout_seconds`, `on_failure`, `workspace`, `permission_mode`, `retry.max_attempts`, `retry.delay_seconds`, `loop.max_iterations`, and `loop.fresh_context`. For example:
+Several node configuration fields accept either a literal value or a `{{template}}` string that is resolved at execution time against the current context (inputs + upstream outputs). These fields are: `agent`, `timeout_seconds`, `on_failure`, `workspace`, values inside `parameters`, `retry.max_attempts`, `retry.delay_seconds`, `loop.max_iterations`, and `loop.fresh_context`. For example:
 
 ```yaml
 - id: deploy
@@ -470,8 +471,8 @@ Once all nodes finish, the run status is set to `completed` (or `failed`). Final
 ```swift
 protocol AgentProviding {
     var name: String { get }
-    func execute(prompt: String, context: TaskContext) async throws -> TaskOutput
-    func executeInteractive(prompt: String, context: TaskContext, sessionName: String) async throws -> TaskOutput
+    func execute(prompt: String, context: TaskContext, timeout: Int?, parameters: [String: String]) async throws -> TaskOutput
+    func executeInteractive(prompt: String, context: TaskContext, sessionName: String, timeout: Int?) async throws -> TaskOutput
 }
 ```
 

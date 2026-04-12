@@ -31,7 +31,7 @@ struct CLIAgentProvider: AgentProviding, Sendable {
         self.tmuxProvider = tmuxProvider
     }
 
-    func execute(prompt: String, context: TaskContext, timeout: Int? = nil, permissionMode: PermissionMode? = nil) async throws -> TaskOutput {
+    func execute(prompt: String, context: TaskContext, timeout: Int? = nil, parameters: [String: String] = [:]) async throws -> TaskOutput {
         // NOTE: CLIAgentProvider intentionally uses shell-string construction (not
         // direct execution) because the command template is user-defined and may
         // require shell features (pipes, redirects, variable expansion, etc.).
@@ -51,11 +51,13 @@ struct CLIAgentProvider: AgentProviding, Sendable {
         // responsible for persisting log paths and cleaning up afterward,
         // so that stderr content remains available for log persistence.
 
+        let environment = context.environment.isEmpty ? nil : context.environment
+
         let result = try await processRunner.run(
             command: command,
             arguments: [],
             workingDirectory: context.repoRoot,
-            environment: nil,
+            environment: environment,
             timeout: timeout,
             stdoutPath: stdoutPath,
             stderrPath: stderrPath

@@ -61,14 +61,3 @@ extension WorkspaceMode: ResolvableConvertible {
     }
 }
 
-extension PermissionMode: ResolvableConvertible {
-    public static func fromResolved(_ string: String) throws -> PermissionMode {
-        guard let value = PermissionMode(rawValue: string) else {
-            throw TemplateError.invalidConversion(
-                value: string,
-                targetType: "PermissionMode"
-            )
-        }
-        return value
-    }
-}

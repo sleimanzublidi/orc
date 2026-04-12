@@ -136,8 +136,8 @@ Node                — id, prompt, command, depends_on, output alias,
                         agent: Resolvable<String>?,
                         timeoutSeconds: Resolvable<Int>?,
                         onFailure: Resolvable<FailureStrategy>,
-                        permissionMode: Resolvable<PermissionMode>?,
                         retryConfig: RetryConfig?, loopConfig: LoopConfig?
+                      parameters: [String: Resolvable<String>] — provider-specific key-value pairs
 InteractiveMode     — enum: .session, .prompt(message:)
 LoopConfig          — until (evaluator name),
                       maxIterations: Resolvable<Int>,
@@ -146,7 +146,6 @@ RetryConfig         — maxAttempts: Resolvable<Int>,
                       delaySeconds: Resolvable<Int>
 FailureStrategy     — enum: .stop, .skip, .continue
 WorkspaceMode       — enum: .shared, .isolated
-PermissionMode      — enum: .defaultMode, .acceptEdits, .full, .plan, .bypassPermissions
 NodeStatus          — enum: .pending, .running, .awaitingInput, .completed,
                       .failed, .skipped, .cancelled
 RunStatus           — enum: .pending, .running, .awaitingInput, .completed,
@@ -159,7 +158,7 @@ EvaluatorDefinition — name, type (ai/script/workflow), agent, prompt, command
 EvaluatorType       — enum: .ai, .script, .workflow
 CleanupPolicy       — enum: .duration(days:), .onSuccess, .always, .never
 TaskContext         — inputs dict, resolved outputs dict, node statuses dict,
-                      workspace path
+                      workspace path, environment dict (from .env + process env)
 TaskOutput          — output text, exit status
 LogEntry            — node_execution_id, stream (stdout/stderr), file path, timestamp
 LogStream           — enum: .stdout, .stderr
@@ -171,7 +170,7 @@ Resolvable<T>       — enum: .literal(T), .template(String)
 ResolvableConvertible — protocol for types convertible from resolved strings
                         Requires init?(rawValue: String)
                         Conformers: Int, Bool, String, FailureStrategy,
-                        PermissionMode, WorkspaceMode
+                        WorkspaceMode
 ```
 
 ### Protocols
@@ -239,7 +238,7 @@ ResolvableConvertible — protocol requiring init?(rawValue: String)
                         Used by TemplateResolver to convert a resolved
                         template string into the target type T.
                         Conformers: Int, Bool, String, FailureStrategy,
-                        PermissionMode, WorkspaceMode.
+                        WorkspaceMode.
 ```
 
 `TemplateResolver` gains a method: `resolve<T: ResolvableConvertible>(resolvable:context:) throws -> T` that resolves `.template` values and converts the result, or returns `.literal` values directly.
@@ -420,8 +419,11 @@ StoreError
 ### Key Types
 
 ```
-ClaudeCodeProvider  — runs `claude -p "prompt" --output-format json`
+ClaudeCodeProvider  — runs `claude -p "prompt" --output-format json --permission-mode <mode>`
+                      Reads permission_mode, bare, model from parameters dict
+                      Defines ClaudePermissionMode enum (provider-specific, not in Models)
                       Parses JSON response, extracts text output
+                      Passes TaskContext.environment to child process
                       Interactive: launches `claude` in tmux session
 
 ShellProvider       — runs command via Foundation Process
@@ -467,7 +469,7 @@ ProviderError
 ### Design Notes
 
 - `ProcessRunning` and `TmuxProviding` protocols exist purely for testability — tests inject fakes instead of spawning real processes.
-- `ClaudeCodeProvider` parses the `--output-format json` response to extract text content. If the JSON structure changes, only this provider needs updating.
+- `ClaudeCodeProvider` parses the `--output-format json` response to extract text content. If the JSON structure changes, only this provider needs updating. It reads `permission_mode`, `bare`, and `model` from the `parameters` dict to build CLI arguments dynamically.
 - `CLIAgentProvider` is generic — reads command template from config, substitutes `{{prompt}}`, runs it. One implementation covers codex, aider, and any future CLI tool.
 - Timeout enforcement: `ProcessRunner` sends SIGTERM, waits 5 seconds, sends SIGKILL. Same logic for cancellation.
 - tmux is a runtime dependency only when `interactive: session` nodes are used. Providers check for tmux availability and throw a clear error if missing.
@@ -535,7 +537,7 @@ CancellationHandler — sends SIGTERM/SIGKILL to running processes
 ResolvedNodeConfig  — internal struct, produced from Node at dispatch time
                       All Resolvable fields resolved to concrete values:
                         agent: String?, timeoutSeconds: Int?,
-                        onFailure: FailureStrategy, permissionMode: PermissionMode?,
+                        onFailure: FailureStrategy, parameters: [String: String],
                         retryConfig: ResolvedRetryConfig?,
                         loopConfig: ResolvedLoopConfig?
                       Created by NodeDispatcher using TemplateResolver
@@ -551,6 +553,11 @@ DefaultMerger       — fills missing workflow inputs from WorkflowInput.default
 WorkspaceManager    — creates workspace directories per run
                       Handles cleanup policies (duration, on_success, always, never)
                       Startup purge of expired workspaces
+
+DotEnvLoader        — loads .env file from project root (KEY=VALUE format)
+                      Supports comments, quoted values, inline comments
+                      Merges with process environment (process env wins on conflict)
+                      Result flows into TaskContext.environment
 
 ConfigManager       — loads/merges config: CLI flags > workflow YAML > .orc/config.yml > defaults
                       YAML-aware read/write for orc config commands

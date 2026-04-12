@@ -2,11 +2,29 @@ import Foundation
 import Logging
 import Models
 
+// MARK: - ClaudePermissionMode
+
+/// Claude Code `--permission-mode` values. Provider-specific — not part of
+/// the core model or protocol.
+enum ClaudePermissionMode: String, Sendable {
+    case defaultMode = "default"
+    case acceptEdits
+    case dontAsk
+    case plan
+    case auto
+    case bypassPermissions
+}
+
 // MARK: - ClaudeCodeProvider
 
 /// Agent provider that wraps the Claude Code CLI (`claude -p ...`).
 /// Non-interactive execution parses JSON output; interactive mode
 /// delegates to a tmux session.
+///
+/// Recognized parameters (via `parameters:` in YAML):
+/// - `permission_mode`: Claude Code `--permission-mode` value (default: `acceptEdits`)
+/// - `bare`: When `"true"`, passes `--bare` for minimal mode (requires API key in environment)
+/// - `model`: Override the Claude model (e.g., `opus`, `sonnet`)
 struct ClaudeCodeProvider: AgentProviding, Sendable {
     let name = "claude-code"
 
@@ -25,7 +43,7 @@ struct ClaudeCodeProvider: AgentProviding, Sendable {
         self.tmuxProvider = tmuxProvider
     }
 
-    func execute(prompt: String, context: TaskContext, timeout: Int? = nil, permissionMode: PermissionMode? = nil) async throws -> TaskOutput {
+    func execute(prompt: String, context: TaskContext, timeout: Int? = nil, parameters: [String: String] = [:]) async throws -> TaskOutput {
         let stdoutPath = NSTemporaryDirectory()
             + "orc-claude-stdout-\(UUID().uuidString).json"
         let stderrPath = NSTemporaryDirectory()
@@ -35,19 +53,28 @@ struct ClaudeCodeProvider: AgentProviding, Sendable {
         // responsible for persisting log paths and cleaning up afterward,
         // so that stderr content remains available for log persistence.
 
-        let mode = permissionMode ?? .acceptEdits
+        let mode = ClaudePermissionMode(rawValue: parameters["permission_mode"] ?? "") ?? .acceptEdits
+        let bare = parameters["bare"] == "true"
+        let model = parameters["model"]
 
         // Use direct execution to avoid shell-string injection. The prompt
         // is passed as a discrete argument, so shell meta-characters in user
         // prompts (;, |, $(), etc.) are inert.
+        var arguments = ["-p", prompt,
+                         "--no-chrome",
+                         "--output-format", "json",
+                         "--permission-mode", mode.rawValue]
+        if bare { arguments += ["--bare"] }
+        if let model { arguments += ["--model", model] }
+
+        // Pass context environment (includes .env values) to the child process.
+        let environment = context.environment.isEmpty ? nil : context.environment
+
         let result = try await processRunner.run(
             command: claudePath,
-            arguments: ["-p", prompt,
-                        "--bare", "--no-chrome",
-                        "--output-format", "json",
-                        "--permission-mode", mode.rawValue],
+            arguments: arguments,
             workingDirectory: context.repoRoot,
-            environment: nil,
+            environment: environment,
             timeout: timeout,
             stdoutPath: stdoutPath,
             stderrPath: stderrPath,

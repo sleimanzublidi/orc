@@ -4,20 +4,6 @@ import Testing
 
 @testable import Providers
 
-/// Thread-safe box for capturing values inside `@Sendable` closures.
-private final class CaptureBox<T>: @unchecked Sendable {
-    private let lock = NSLock()
-    private var _value: T?
-
-    var value: T? {
-        lock.withLock { _value }
-    }
-
-    func set(_ newValue: T) {
-        lock.withLock { _value = newValue }
-    }
-}
-
 @Suite("ClaudeCodeProvider")
 struct ClaudeCodeProviderTests {
     let context = TaskContext(repoRoot: "/tmp/repo", workspacePath: "/tmp/orc-test")
@@ -54,7 +40,7 @@ struct ClaudeCodeProviderTests {
         #expect(runner.capturedExecutablePath == "/usr/local/bin/claude")
         // Verify arguments are passed as discrete values, not interpolated
         // into a shell string. This prevents shell-string injection.
-        #expect(runner.capturedArguments == ["-p", "Hello world", "--output-format", "json", "--permission-mode", "acceptEdits"])
+        #expect(runner.capturedArguments == ["-p", "Hello world", "--no-chrome", "--output-format", "json", "--permission-mode", "acceptEdits"])
     }
 
     @Test("Parses valid JSON array with result element")
@@ -165,10 +151,10 @@ struct ClaudeCodeProviderTests {
         // With direct execution the prompt is passed as a discrete argument,
         // so no escaping is needed — the raw string reaches the binary verbatim.
         #expect(runner.capturedExecutablePath == "/usr/local/bin/claude")
-        #expect(runner.capturedArguments == ["-p", dangerousPrompt, "--output-format", "json", "--permission-mode", "acceptEdits"])
+        #expect(runner.capturedArguments == ["-p", dangerousPrompt, "--no-chrome", "--output-format", "json", "--permission-mode", "acceptEdits"])
     }
 
-    @Test("Defaults to acceptEdits when no permission mode specified")
+    @Test("Defaults to acceptEdits when no parameters specified")
     func defaultPermissionMode() async throws {
         let runner = FakeProcessRunner { _, _, stdoutPath, _ in
             let json = """
@@ -198,7 +184,7 @@ struct ClaudeCodeProviderTests {
         #expect(runner.capturedArguments?.contains("acceptEdits") == true)
     }
 
-    @Test("Uses explicit permission mode when provided")
+    @Test("Uses explicit permission mode from parameters")
     func explicitPermissionMode() async throws {
         let runner = FakeProcessRunner { _, _, stdoutPath, _ in
             let json = """
@@ -223,9 +209,92 @@ struct ClaudeCodeProviderTests {
             tmuxProvider: FakeTmuxProvider()
         )
 
-        _ = try await provider.execute(prompt: "test", context: context, permissionMode: .full)
+        _ = try await provider.execute(prompt: "test", context: context, parameters: ["permission_mode": "dontAsk"])
 
-        #expect(runner.capturedArguments == ["-p", "test", "--output-format", "json", "--permission-mode", "full"])
+        #expect(runner.capturedArguments == ["-p", "test", "--no-chrome", "--output-format", "json", "--permission-mode", "dontAsk"])
+    }
+
+    @Test("Bare parameter adds --bare flag")
+    func bareParameter() async throws {
+        let runner = FakeProcessRunner { _, _, stdoutPath, _ in
+            let json = """
+                [{"type":"result","result":"ok"}]
+                """
+            if let stdoutPath {
+                FileManager.default.createFile(
+                    atPath: stdoutPath,
+                    contents: json.data(using: .utf8)
+                )
+            }
+            return ProcessResult(
+                exitCode: 0,
+                stdoutPath: stdoutPath ?? "/dev/null",
+                stderrPath: "/dev/null"
+            )
+        }
+
+        let provider = ClaudeCodeProvider(
+            claudePath: "/usr/local/bin/claude",
+            processRunner: runner,
+            tmuxProvider: FakeTmuxProvider()
+        )
+
+        _ = try await provider.execute(prompt: "test", context: context, parameters: ["bare": "true"])
+
+        #expect(runner.capturedArguments?.contains("--bare") == true)
+    }
+
+    @Test("Model parameter adds --model flag")
+    func modelParameter() async throws {
+        let runner = FakeProcessRunner { _, _, stdoutPath, _ in
+            let json = """
+                [{"type":"result","result":"ok"}]
+                """
+            if let stdoutPath {
+                FileManager.default.createFile(
+                    atPath: stdoutPath,
+                    contents: json.data(using: .utf8)
+                )
+            }
+            return ProcessResult(
+                exitCode: 0,
+                stdoutPath: stdoutPath ?? "/dev/null",
+                stderrPath: "/dev/null"
+            )
+        }
+
+        let provider = ClaudeCodeProvider(
+            claudePath: "/usr/local/bin/claude",
+            processRunner: runner,
+            tmuxProvider: FakeTmuxProvider()
+        )
+
+        _ = try await provider.execute(prompt: "test", context: context, parameters: ["model": "opus"])
+
+        #expect(runner.capturedArguments?.contains("--model") == true)
+        #expect(runner.capturedArguments?.contains("opus") == true)
+    }
+
+    @Test("Context environment is passed to process runner")
+    func environmentPassthrough() async throws {
+        let runner = FakeProcessRunner(exitCode: 0, stdoutContent: """
+            [{"type":"result","result":"ok"}]
+            """)
+
+        let provider = ClaudeCodeProvider(
+            claudePath: "/usr/local/bin/claude",
+            processRunner: runner,
+            tmuxProvider: FakeTmuxProvider()
+        )
+
+        let ctxWithEnv = TaskContext(
+            repoRoot: "/tmp/repo",
+            workspacePath: "/tmp/orc-test",
+            environment: ["ANTHROPIC_API_KEY": "sk-test-123"]
+        )
+        _ = try await provider.execute(prompt: "test", context: ctxWithEnv)
+
+        #expect(runner.capturedEnvironment?["ANTHROPIC_API_KEY"] == "sk-test-123")
     }
 
     @Test("Interactive mode creates tmux session")

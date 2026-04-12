@@ -20,6 +20,7 @@ struct NodeDispatcher: Sendable {
     let loopHandler: LoopHandler
     let maxParallelNodes: Int
     let repoRoot: String
+    let environment: [String: String]
 
     private let logger = Logger(label: "orc.engine.dispatcher")
 
@@ -55,7 +56,8 @@ struct NodeDispatcher: Sendable {
                     let defaultContext = TaskContext(
                         inputs: mutableInputs,
                         repoRoot: repoRoot,
-                        workspacePath: run.workspacePath
+                        workspacePath: run.workspacePath,
+                        environment: environment
                     )
                     let resolved = try templateResolver.resolve(
                         template: defaultTemplate, context: defaultContext
@@ -256,8 +258,8 @@ struct NodeDispatcher: Sendable {
                 outputs: nodeOutputs,
                 nodeStatuses: nodeStatuses,
                 repoRoot: repoRoot,
-
-                workspacePath: run.workspacePath
+                workspacePath: run.workspacePath,
+                environment: environment
             )
             var finalOutputParts: [String] = []
             for (key, template) in outputMap.sorted(by: { $0.key < $1.key }) {
@@ -299,8 +301,8 @@ struct NodeDispatcher: Sendable {
             outputs: nodeOutputs,
             nodeStatuses: nodeStatuses,
             repoRoot: repoRoot,
-
-            workspacePath: run.workspacePath
+            workspacePath: run.workspacePath,
+            environment: environment
         )
 
         // Evaluate when: guard expression.
@@ -466,7 +468,7 @@ struct NodeDispatcher: Sendable {
                 let output = try await provider.execute(
                     prompt: resolvedPrompt, context: context,
                     timeout: config.timeoutSeconds,
-                    permissionMode: config.permissionMode
+                    parameters: config.parameters
                 )
 
                 try await store.updateNodeExecution(
@@ -641,7 +643,7 @@ struct NodeDispatcher: Sendable {
                     loopConfig: loopConfig,
                     agentName: config.agent ?? "shell",
                     timeoutSeconds: config.timeoutSeconds,
-                    permissionMode: config.permissionMode,
+                    parameters: config.parameters,
                     retryConfig: config.retry
                 )
                 return (node.id, .completed, output.output, nil)
@@ -879,7 +881,8 @@ struct NodeDispatcher: Sendable {
             interactiveHandler: interactiveHandler,
             loopHandler: loopHandler,
             maxParallelNodes: maxParallelNodes,
-            repoRoot: repoRoot
+            repoRoot: repoRoot,
+            environment: environment
         )
 
         // 7. Execute the child workflow.
@@ -984,8 +987,10 @@ struct NodeDispatcher: Sendable {
         let workspaceMode: WorkspaceMode? = try node.workspaceMode.map {
             try templateResolver.resolve($0, context: context)
         }
-        let permissionMode: PermissionMode? = try node.permissionMode.map {
-            try templateResolver.resolve($0, context: context)
+        // Resolve provider-specific parameters (template strings → concrete values).
+        var resolvedParameters: [String: String] = [:]
+        for (key, resolvable) in node.parameters {
+            resolvedParameters[key] = try templateResolver.resolve(resolvable, context: context)
         }
 
         let retry: ResolvedRetryConfig?
@@ -1011,7 +1016,7 @@ struct NodeDispatcher: Sendable {
 
         return ResolvedNodeConfig(
             agent: agent, timeoutSeconds: timeoutSeconds, onFailure: onFailure,
-            workspaceMode: workspaceMode, permissionMode: permissionMode,
+            workspaceMode: workspaceMode, parameters: resolvedParameters,
             retry: retry, loop: loop
         )
     }

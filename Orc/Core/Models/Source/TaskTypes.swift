@@ -10,19 +10,22 @@ public struct TaskContext: Sendable, Equatable, Codable {
     public let nodeStatuses: [String: NodeStatus]
     public let repoRoot: String
     public let workspacePath: String
+    public let environment: [String: String]
 
     public init(
         inputs: [String: String] = [:],
         outputs: [String: String] = [:],
         nodeStatuses: [String: NodeStatus] = [:],
         repoRoot: String,
-        workspacePath: String
+        workspacePath: String,
+        environment: [String: String] = [:]
     ) {
         self.inputs = inputs
         self.outputs = outputs
         self.nodeStatuses = nodeStatuses
         self.repoRoot = repoRoot
         self.workspacePath = workspacePath
+        self.environment = environment
     }
 }
 

@@ -29,7 +29,7 @@ final class FakeAgentProvider: AgentProviding, @unchecked Sendable {
         self.name = name
     }
 
-    func execute(prompt: String, context: TaskContext, timeout: Int? = nil, permissionMode: PermissionMode? = nil) async throws -> TaskOutput {
+    func execute(prompt: String, context: TaskContext, timeout: Int? = nil, parameters: [String: String] = [:]) async throws -> TaskOutput {
         executedPrompts.append(prompt)
 
         if let error = errorToThrow {

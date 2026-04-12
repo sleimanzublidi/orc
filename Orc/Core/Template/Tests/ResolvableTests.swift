@@ -264,28 +264,6 @@ struct ResolvableTests {
         }
     }
 
-    // MARK: - Resolve: Template -> PermissionMode
-
-    @Test("Resolving a template PermissionMode from context")
-    func resolveTemplatePermissionMode() throws {
-        let ctx = makeContext(inputs: ["perm": "full"])
-        let result = try resolver.resolve(
-            Resolvable<PermissionMode>.template("{{perm}}"),
-            context: ctx
-        )
-        #expect(result == .full)
-    }
-
-    @Test("Resolving a template PermissionMode with 'default' raw value")
-    func resolveTemplatePermissionModeDefault() throws {
-        let ctx = makeContext(inputs: ["perm": "default"])
-        let result = try resolver.resolve(
-            Resolvable<PermissionMode>.template("{{perm}}"),
-            context: ctx
-        )
-        #expect(result == .defaultMode)
-    }
-
     // MARK: - Resolve: Unresolved Variable
 
     @Test("Resolving a template with missing variable throws unresolvedVariable")

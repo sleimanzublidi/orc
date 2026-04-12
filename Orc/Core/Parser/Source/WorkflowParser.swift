@@ -372,10 +372,13 @@ struct WorkflowParser: WorkflowParsing, Sendable {
             dict, key: "workspace", nodeID: id, typeName: "WorkspaceMode"
         )
 
-        // permission_mode (optional)
-        let permissionMode: Resolvable<PermissionMode>? = try mapResolvableEnum(
-            dict, key: "permission_mode", nodeID: id, typeName: "PermissionMode"
-        )
+        // parameters (optional dict of provider-specific key-value pairs)
+        let parameters: [String: Resolvable<String>]
+        if let paramsDict = dict["parameters"] as? [String: Any] {
+            parameters = try mapParametersDict(paramsDict, nodeID: id)
+        } else {
+            parameters = [:]
+        }
 
         return Node(
             id: id,
@@ -393,7 +396,7 @@ struct WorkflowParser: WorkflowParsing, Sendable {
             workflow: workflow,
             inputs: inputs,
             workspaceMode: workspaceMode,
-            permissionMode: permissionMode
+            parameters: parameters
         )
     }
 
@@ -511,6 +514,23 @@ struct WorkflowParser: WorkflowParsing, Sendable {
     /// Maps a dictionary value to a `Resolvable` enum. If the string contains
     /// `{{`, it is treated as a template. Otherwise, it must be a valid raw value
     /// of the enum type `T`.
+    /// Maps a `parameters:` dict to `[String: Resolvable<String>]`.
+    /// Values containing `{{` are treated as templates; all others as literals.
+    private func mapParametersDict(
+        _ dict: [String: Any], nodeID: String
+    ) throws -> [String: Resolvable<String>] {
+        var result: [String: Resolvable<String>] = [:]
+        for (key, raw) in dict {
+            let strVal = "\(raw)"
+            if strVal.contains("{{") {
+                result[key] = .template(strVal)
+            } else {
+                result[key] = .literal(strVal)
+            }
+        }
+        return result
+    }
+
     private func mapResolvableEnum<T: RawRepresentable>(
         _ dict: [String: Any], key: String, nodeID: String, typeName: String
     ) throws -> Resolvable<T>? where T.RawValue == String, T: Sendable & Equatable & Codable {
@@ -549,7 +569,9 @@ struct WorkflowParser: WorkflowParsing, Sendable {
         if case .template(let t) = node.timeoutSeconds { templates.append(t) }
         if case .template(let t) = node.onFailure { templates.append(t) }
         if case .template(let t) = node.workspaceMode { templates.append(t) }
-        if case .template(let t) = node.permissionMode { templates.append(t) }
+        for (_, value) in node.parameters {
+            if case .template(let t) = value { templates.append(t) }
+        }
         if let loop = node.loop {
             if case .template(let t) = loop.maxIterations { templates.append(t) }
             if case .template(let t) = loop.freshContext { templates.append(t) }

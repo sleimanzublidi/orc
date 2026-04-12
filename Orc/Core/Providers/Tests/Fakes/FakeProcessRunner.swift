@@ -23,6 +23,9 @@ final class FakeProcessRunner: ProcessRunning, @unchecked Sendable {
     /// The last `arguments` array passed to `run(...)`.
     private(set) var capturedArguments: [String]?
 
+    /// The last `environment` dictionary passed to `run(...)`.
+    private(set) var capturedEnvironment: [String: String]?
+
     init(
         handler: @escaping @Sendable (String, [String], String?, String?) -> ProcessResult
     ) {
@@ -66,6 +69,7 @@ final class FakeProcessRunner: ProcessRunning, @unchecked Sendable {
         capturedTimeout = timeout
         capturedExecutablePath = executablePath
         capturedArguments = arguments
+        capturedEnvironment = environment
         return handler(command, arguments, stdoutPath, stderrPath)
     }
 }

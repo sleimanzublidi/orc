@@ -66,7 +66,8 @@ struct NodeDispatcherTests {
             interactiveHandler: interactiveHandler,
             loopHandler: loopHandler,
             maxParallelNodes: maxParallelNodes,
-            repoRoot: "/tmp/repo"
+            repoRoot: "/tmp/repo",
+            environment: [:]
         )
 
         return (dispatcher, store, run)
@@ -306,7 +307,8 @@ struct NodeDispatcherTests {
             interactiveHandler: interactiveHandler,
             loopHandler: loopHandler,
             maxParallelNodes: 4,
-            repoRoot: "/tmp/repo"
+            repoRoot: "/tmp/repo",
+            environment: [:]
         )
 
         let result = try await dispatcher.execute(run: run, inputs: [:])
@@ -377,7 +379,8 @@ struct NodeDispatcherTests {
             interactiveHandler: interactiveHandler,
             loopHandler: loopHandler,
             maxParallelNodes: 4,
-            repoRoot: "/tmp/repo"
+            repoRoot: "/tmp/repo",
+            environment: [:]
         )
 
         let result = try await dispatcher.execute(run: run, inputs: [:])
@@ -672,7 +675,8 @@ struct NodeDispatcherTests {
             interactiveHandler: interactiveHandler,
             loopHandler: loopHandler,
             maxParallelNodes: 4,
-            repoRoot: "/tmp/repo"
+            repoRoot: "/tmp/repo",
+            environment: [:]
         )
 
         let result = try await dispatcher.execute(run: run, inputs: [:])
@@ -763,7 +767,8 @@ struct NodeDispatcherTests {
             interactiveHandler: interactiveHandler,
             loopHandler: loopHandler,
             maxParallelNodes: 4,
-            repoRoot: "/tmp/repo"
+            repoRoot: "/tmp/repo",
+            environment: [:]
         )
 
         // Pass the input so the template "{{strategy}}" resolves to "continue".
@@ -842,7 +847,8 @@ struct NodeDispatcherTests {
             interactiveHandler: interactiveHandler,
             loopHandler: loopHandler,
             maxParallelNodes: 4,
-            repoRoot: "/tmp/repo"
+            repoRoot: "/tmp/repo",
+            environment: [:]
         )
 
         let result = try await dispatcher.execute(run: run, inputs: [:])
@@ -912,7 +918,8 @@ struct NodeDispatcherTests {
             interactiveHandler: interactiveHandler,
             loopHandler: loopHandler,
             maxParallelNodes: 4,
-            repoRoot: "/tmp/repo"
+            repoRoot: "/tmp/repo",
+            environment: [:]
         )
 
         let result = try await dispatcher.execute(run: run, inputs: [:])

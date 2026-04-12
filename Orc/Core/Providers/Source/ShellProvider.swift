@@ -24,7 +24,7 @@ struct ShellProvider: AgentProviding, Sendable {
         self.tmuxProvider = tmuxProvider
     }
 
-    func execute(prompt: String, context: TaskContext, timeout: Int? = nil, permissionMode: PermissionMode? = nil) async throws -> TaskOutput {
+    func execute(prompt: String, context: TaskContext, timeout: Int? = nil, parameters: [String: String] = [:]) async throws -> TaskOutput {
         let stdoutPath = NSTemporaryDirectory()
             + "orc-shell-stdout-\(UUID().uuidString).txt"
         let stderrPath = NSTemporaryDirectory()
@@ -34,6 +34,8 @@ struct ShellProvider: AgentProviding, Sendable {
         // responsible for persisting log paths and cleaning up afterward,
         // so that stderr content remains available for log persistence.
 
+        let environment = context.environment.isEmpty ? nil : context.environment
+
         // Use direct execution with the configured shell to avoid shell-string
         // injection in the non-zsh path. The prompt is passed as a discrete
         // argument to the shell's -c flag, so metacharacters are inert.
@@ -41,7 +43,7 @@ struct ShellProvider: AgentProviding, Sendable {
             command: prompt,
             arguments: ["-c", prompt],
             workingDirectory: context.repoRoot,
-            environment: nil,
+            environment: environment,
             timeout: timeout,
             stdoutPath: stdoutPath,
             stderrPath: stderrPath,

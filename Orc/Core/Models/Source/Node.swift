@@ -21,7 +21,7 @@ public struct Node: Sendable, Equatable, Codable {
     public let workflow: String?
     public let inputs: [String: String]?
     public let workspaceMode: Resolvable<WorkspaceMode>?
-    public let permissionMode: Resolvable<PermissionMode>?
+    public let parameters: [String: Resolvable<String>]
 
     public init(
         id: String,
@@ -39,7 +39,7 @@ public struct Node: Sendable, Equatable, Codable {
         workflow: String? = nil,
         inputs: [String: String]? = nil,
         workspaceMode: Resolvable<WorkspaceMode>? = nil,
-        permissionMode: Resolvable<PermissionMode>? = nil
+        parameters: [String: Resolvable<String>] = [:]
     ) {
         self.id = id
         self.agent = agent
@@ -56,7 +56,7 @@ public struct Node: Sendable, Equatable, Codable {
         self.workflow = workflow
         self.inputs = inputs
         self.workspaceMode = workspaceMode
-        self.permissionMode = permissionMode
+        self.parameters = parameters
     }
 }
 
@@ -159,14 +159,3 @@ public enum WorkspaceMode: String, Sendable, Equatable, Codable {
     case isolated
 }
 
-// MARK: - PermissionMode
-
-/// Claude Code `--permission-mode` for agent nodes. Controls which tools
-/// the agent can use without prompting.
-public enum PermissionMode: String, Sendable, Equatable, Codable {
-    case defaultMode = "default"
-    case acceptEdits
-    case full
-    case plan
-    case bypassPermissions
-}
