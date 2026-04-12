@@ -95,9 +95,17 @@ The engine library (OrcEngine) is the single source of truth — the CLI is a th
 
 ### Prerequisites
 
-* macOS (arm64 or x86_64)
+* macOS (arm64 or x86_64) or Linux (x86_64 or arm64)
 * Swift toolchain (5.9+)
 * tmux (only required for interactive session nodes)
+
+**Linux only:**
+
+```sh
+sudo apt-get install libsqlite3-dev libicu-dev
+```
+
+`libsqlite3-dev` is required by GRDB and `libicu-dev` is required by Foundation for date/string operations.
 
 ### Installation
 
