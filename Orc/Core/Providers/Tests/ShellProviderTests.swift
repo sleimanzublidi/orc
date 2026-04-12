@@ -142,20 +142,19 @@ struct ShellProviderTests {
         #expect(runner.capturedArguments == ["-c", dangerousCommand])
     }
 
-    @Test("Uses direct execution even for default zsh shell")
-    func directExecutionForZsh() async throws {
+    @Test("Uses direct execution with platform default shell")
+    func directExecutionForDefaultShell() async throws {
         let runner = FakeProcessRunner(exitCode: 0, stdoutContent: "ok")
 
         let provider = ShellProvider(
-            defaultShell: "/bin/zsh",
             processRunner: runner,
             tmuxProvider: FakeTmuxProvider()
         )
 
         _ = try await provider.execute(prompt: "ls -la", context: context)
 
-        // Even with zsh, direct execution is used to keep the code path uniform.
-        #expect(runner.capturedExecutablePath == "/bin/zsh")
+        // Direct execution is used with the platform default shell.
+        #expect(runner.capturedExecutablePath == Platform.defaultShell)
         #expect(runner.capturedArguments == ["-c", "ls -la"])
     }
 }

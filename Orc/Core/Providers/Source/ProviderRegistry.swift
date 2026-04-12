@@ -40,7 +40,7 @@ public enum ProviderFactory {
     }
 
     public static func makeShell(
-        defaultShell: String = "/bin/zsh"
+        defaultShell: String = Platform.defaultShell
     ) -> any AgentProviding {
         ShellProvider(defaultShell: defaultShell)
     }

@@ -79,7 +79,7 @@ public protocol WorkflowParsing: Sendable {
 /// When `executablePath` is non-nil, the process is launched directly using
 /// that path as the executable and `arguments` as its argv — no shell wrapping.
 /// When `executablePath` is nil (the default), the `command` string is executed
-/// via `/bin/zsh -c`, which is the legacy shell-based mode.
+/// via the platform default shell's `-c` flag (legacy shell-based mode).
 ///
 /// Prefer `executablePath` for known binaries to avoid shell-string injection.
 /// Use the shell-based mode only for user-supplied shell commands that need

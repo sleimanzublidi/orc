@@ -202,7 +202,7 @@ Custom evaluators can be defined in `.orc/evaluators/<name>.yml`.
 | Name | Description |
 |------|-------------|
 | `claude-code` | Claude Code CLI agent |
-| `shell` | Shell command execution (default: `/bin/zsh`) |
+| `shell` | Shell command execution (default: `/bin/zsh` on macOS, `/bin/sh` on Linux) |
 | Custom | CLI agents configured in `.orc/config.yml` under `providers:` with `type: cli-agent` |
 
 Custom provider config example in `.orc/config.yml`:

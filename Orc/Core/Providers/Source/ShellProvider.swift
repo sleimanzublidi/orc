@@ -15,7 +15,7 @@ struct ShellProvider: AgentProviding, Sendable {
     private let logger = Logger(label: "orc.providers.shell")
 
     init(
-        defaultShell: String = "/bin/zsh",
+        defaultShell: String = Platform.defaultShell,
         processRunner: any ProcessRunning = ProcessRunner(),
         tmuxProvider: any TmuxProviding = TmuxSession()
     ) {

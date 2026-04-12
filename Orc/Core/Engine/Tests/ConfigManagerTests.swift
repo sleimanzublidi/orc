@@ -34,7 +34,7 @@ struct ConfigManagerTests {
         #expect(config.maxParallelNodes == ProcessInfo.processInfo.processorCount)
         #expect(config.retentionDays == 30)
         #expect(config.retentionPolicy == "completed_only")
-        #expect(config.defaultShell == "/bin/zsh")
+        #expect(config.defaultShell == Platform.defaultShell)
         #expect(config.providers.isEmpty)
     }
 
@@ -136,7 +136,7 @@ struct ConfigManagerTests {
             command: "codex -q '{{prompt}}'"
             interactive_command: "codex"
           shell:
-            default_shell: /bin/zsh
+            default_shell: /bin/bash
         concurrency:
           max_parallel_nodes: 4
         storage:

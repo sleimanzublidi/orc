@@ -15,4 +15,4 @@ providers:
   claude-code:
     path: /usr/local/bin/claude    # path to the claude CLI binary
   shell:
-    default_shell: /bin/zsh
+    default_shell: /bin/zsh          # /bin/sh on Linux

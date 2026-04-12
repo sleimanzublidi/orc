@@ -5,7 +5,7 @@ import Models
 // MARK: - ProcessRunner
 
 /// Thin wrapper around Foundation's `Process` that conforms to `ProcessRunning`.
-/// Executes commands via `/bin/zsh -c` with optional timeout enforcement.
+/// Executes commands via the platform default shell with optional timeout enforcement.
 struct ProcessRunner: ProcessRunning, Sendable {
     private let logger = Logger(label: "orc.providers.process-runner")
 
@@ -34,10 +34,10 @@ struct ProcessRunner: ProcessRunning, Sendable {
             process.executableURL = URL(fileURLWithPath: executablePath)
             process.arguments = arguments
         } else {
-            // Legacy shell mode: wrap the command string in /bin/zsh -c.
+            // Legacy shell mode: wrap the command string in the default shell's -c.
             // Use this only for user-supplied shell commands that need shell
             // features (pipes, redirects, variable expansion, etc.).
-            process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+            process.executableURL = URL(fileURLWithPath: Platform.defaultShell)
             process.arguments = ["-c", command]
         }
 

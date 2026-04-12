@@ -321,7 +321,7 @@ public struct OrcConfig: Sendable, Equatable {
         maxParallelNodes: Int = ProcessInfo.processInfo.processorCount,
         retentionDays: Int = 30,
         retentionPolicy: String = "completed_only",
-        defaultShell: String = "/bin/zsh",
+        defaultShell: String = Platform.defaultShell,
         verbose: Bool = false,
         providers: [String: ProviderConfig] = [:]
     ) {
@@ -337,7 +337,7 @@ public struct OrcConfig: Sendable, Equatable {
         maxParallelNodes: ProcessInfo.processInfo.processorCount,
         retentionDays: 30,
         retentionPolicy: "completed_only",
-        defaultShell: "/bin/zsh",
+        defaultShell: Platform.defaultShell,
         verbose: false,
         providers: [:]
     )
