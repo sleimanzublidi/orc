@@ -57,4 +57,42 @@ final class FakeProcessRunner: ProcessRunning, @unchecked Sendable {
         capturedTimeout = timeout
         return handler(command, arguments, environment, stdoutPath, stderrPath)
     }
+
+    /// Optional streaming handler. When non-nil, `runStreaming()` delegates to it.
+    /// When nil, falls back to wrapping `run()` in a single `.completed` event.
+    var streamingHandler: (@Sendable (String, [String], [String: String]?, String?, String?) -> AsyncThrowingStream<ProcessStreamEvent, any Error>)?
+
+    func runStreaming(
+        command: String,
+        arguments: [String],
+        workingDirectory: String?,
+        environment: [String: String]?,
+        timeout: Int?,
+        stdoutPath: String?,
+        stderrPath: String?,
+        executablePath: String? = nil
+    ) -> AsyncThrowingStream<ProcessStreamEvent, any Error> {
+        if let streamingHandler {
+            return streamingHandler(command, arguments, environment, stdoutPath, stderrPath)
+        }
+        // Fall back to wrapping run() in a single .completed event
+        let runner = self
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let result = try await runner.run(
+                        command: command, arguments: arguments,
+                        workingDirectory: workingDirectory, environment: environment,
+                        timeout: timeout, stdoutPath: stdoutPath,
+                        stderrPath: stderrPath, executablePath: executablePath
+                    )
+                    continuation.yield(.completed(result))
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { @Sendable _ in task.cancel() }
+        }
+    }
 }

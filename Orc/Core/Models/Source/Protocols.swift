@@ -99,6 +99,23 @@ public protocol ProcessRunning: Sendable {
         stderrPath: String?,
         executablePath: String?
     ) async throws -> ProcessResult
+
+    /// Streams process output as it arrives, yielding `.stdout` / `.stderr` chunks
+    /// followed by a `.completed` event when the process exits.
+    ///
+    /// Uses pipes rather than file handles so data is available immediately.
+    /// If `stdoutPath` / `stderrPath` are provided, chunks are also written to
+    /// log files on disk (preserving the same log infrastructure as `run()`).
+    func runStreaming(
+        command: String,
+        arguments: [String],
+        workingDirectory: String?,
+        environment: [String: String]?,
+        timeout: Int?,
+        stdoutPath: String?,
+        stderrPath: String?,
+        executablePath: String?
+    ) -> AsyncThrowingStream<ProcessStreamEvent, any Error>
 }
 
 // MARK: - ProcessRunning Default
@@ -125,6 +142,46 @@ extension ProcessRunning {
             stderrPath: stderrPath,
             executablePath: nil
         )
+    }
+}
+
+// MARK: - ProcessRunning Streaming Default
+
+extension ProcessRunning {
+    /// Default streaming implementation that wraps a single `run()` call.
+    /// Yields the completed result as the only event. Conformers that need
+    /// real-time chunk streaming should provide their own implementation.
+    public func runStreaming(
+        command: String,
+        arguments: [String],
+        workingDirectory: String?,
+        environment: [String: String]?,
+        timeout: Int?,
+        stdoutPath: String?,
+        stderrPath: String?,
+        executablePath: String? = nil
+    ) -> AsyncThrowingStream<ProcessStreamEvent, any Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let result = try await self.run(
+                        command: command,
+                        arguments: arguments,
+                        workingDirectory: workingDirectory,
+                        environment: environment,
+                        timeout: timeout,
+                        stdoutPath: stdoutPath,
+                        stderrPath: stderrPath,
+                        executablePath: executablePath
+                    )
+                    continuation.yield(.completed(result))
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { @Sendable _ in task.cancel() }
+        }
     }
 }
 
