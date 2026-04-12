@@ -3,6 +3,7 @@ FROM swift:6.1-noble
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libsqlite3-dev \
     libicu-dev \
+    zip \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
