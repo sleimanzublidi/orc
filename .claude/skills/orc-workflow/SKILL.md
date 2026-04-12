@@ -287,6 +287,82 @@ output:
   suggestions: "{{suggestions}}"
 ```
 
+### Parameterized Nested Workflow
+
+A parent workflow that calls a child workflow, overriding some inputs while letting others fall back to defaults. Config fields like `timeout_seconds` use template strings so the caller can control them.
+
+**Child workflow** (`.orc/workflows/run-tests.yaml`):
+
+```yaml
+# Run tests with configurable timeout and retry.
+#
+# Usage:
+#   orc start run-tests
+#   orc start run-tests --input directory="Tests/Engine"
+#   orc start run-tests --input timeout="600" --input retries="3"
+name: run-tests
+description: Runs tests in a directory with configurable timeout and retries.
+
+input:
+  - name: directory
+    type: string
+    default: "Tests/"
+  - name: timeout
+    type: string
+    default: "300"
+  - name: retries
+    type: string
+    default: "1"
+
+nodes:
+  - id: test
+    agent: shell
+    prompt: "cd {{repo_root}} && swift test --filter {{directory}}"
+    timeout_seconds: "{{timeout}}"
+    retry:
+      max_attempts: "{{retries}}"
+      delay_seconds: "5"
+    output: test_result
+
+output:
+  result: "{{test_result}}"
+```
+
+**Parent workflow** calling the child with overrides:
+
+```yaml
+# Build and test with custom settings.
+#
+# Usage:
+#   orc start build-and-test
+name: build-and-test
+description: Builds the project then runs tests with extended timeout.
+
+input:
+  - name: test_timeout
+    type: string
+    default: "600"
+
+nodes:
+  - id: build
+    agent: shell
+    prompt: "cd {{repo_root}} && swift build"
+    output: build_result
+
+  - id: test
+    workflow: .orc/workflows/run-tests.yaml
+    depends_on: build
+    inputs:
+      timeout: "{{test_timeout}}"
+      retries: "3"
+    # 'directory' not provided — child uses its default ("Tests/")
+```
+
+Key points:
+- The child workflow defines `default` on all inputs, so the parent can omit `inputs:` entirely or provide only the overrides it cares about.
+- Config fields like `timeout_seconds` and `retry.max_attempts` use `{{template}}` strings that resolve from the child's own inputs.
+- The engine validates that all required inputs without defaults are provided by the caller.
+
 ### Advanced — Loop with Conditional
 
 ```yaml

@@ -20,6 +20,9 @@ Complete reference for all fields, types, and validation rules in Orc workflow Y
 | `name` | String | Yes | — |
 | `type` | String | No | `"string"` |
 | `required` | Bool | No | `true` |
+| `default` | String | No | — |
+
+`default` is a raw template string resolved at workflow start when the input is not provided by the caller. An input with a `default` does not need to be supplied by the caller, even if `required: true`.
 
 Known types: `string`, `file`, `bool`.
 
@@ -41,9 +44,11 @@ Known types: `string`, `file`, `bool`.
 | `timeout_seconds` | Int | No | nil | Max execution time in seconds |
 | `on_failure` | `"stop"` / `"skip"` / `"continue"` | No | `"stop"` | Failure strategy |
 | `workflow` | String | No | nil | Path to a nested workflow file. Mutually exclusive with `agent`/`command` |
-| `inputs` | {String: String} | No | nil | Input mapping for nested workflow nodes. Required (non-empty) when `workflow` is set. Values are template strings |
+| `inputs` | {String: String} | No | nil | Input mapping for nested workflow nodes. Values are template strings. Required when `workflow` is set unless the child workflow defines `default` values for all its inputs |
 | `workspace` | `"shared"` / `"isolated"` | No | `"shared"` | Workspace mode for nested workflows |
 | `permission_mode` | PermissionMode | No | `"acceptEdits"` | Claude Code `--permission-mode`. Only applies to `claude-code` agent nodes |
+
+**Template-compatible config fields:** `agent`, `timeout_seconds`, `on_failure`, `workspace`, and `permission_mode` accept `{{template}}` strings in addition to literal values. The template is resolved before the value is interpreted.
 
 **Constraint:** A node must have at least one of: `agent`, `command`, `workflow`, or `interactive: prompt`.
 
@@ -68,6 +73,8 @@ Controls which tools the Claude Code agent can use without prompting.
 | `fresh_context` | Bool | No | false |
 | `prompt` | String | No | — |
 
+`max_iterations` and `fresh_context` accept `{{template}}` strings in addition to literal values. The template is resolved before the value is parsed.
+
 If the node has no top-level `prompt`, `loop.prompt` is promoted to the node's prompt.
 
 ## RetryConfig
@@ -76,6 +83,8 @@ If the node has no top-level `prompt`, `loop.prompt` is promoted to the node's p
 |-------|------|----------|---------|
 | `max_attempts` | Int | No | 1 |
 | `delay_seconds` | Int | No | 0 |
+
+`max_attempts` and `delay_seconds` accept `{{template}}` strings in addition to literal values. The template is resolved before the value is parsed.
 
 ## CleanupPolicy
 
@@ -208,5 +217,5 @@ The parser enforces these rules. Violating any causes a validation error:
 9. All `{{variable}}` references in templates must resolve to known names (inputs, node IDs with `.output`/`.status`, output aliases, or builtins `repo_root`/`orc_root`/`workspace`/`last_output`)
 10. Output aliases must not collide with other node IDs or input names
 11. `when:` expressions must be syntactically valid (balanced parens, no dangling operators, no unterminated strings)
-12. Workflow nodes must have a non-empty `inputs` mapping
+12. Workflow nodes must provide `inputs` for all child workflow inputs that lack a `default` value
 13. Output map template variables must all resolve

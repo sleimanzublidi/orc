@@ -52,3 +52,4 @@ CLAUDE.local.md
 .orc/*
 !.orc/evaluators/
 !.orc/workflows/
+Orc/.claude/settings.local.json
