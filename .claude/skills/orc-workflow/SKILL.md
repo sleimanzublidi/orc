@@ -1,6 +1,12 @@
 ---
 name: orc-workflow
 description: Use when creating, generating, scaffolding, modifying, reviewing, or executing Orc workflow YAML files, or when the user asks to build or run an automation workflow for Orc
+allowed_tools:
+  - Read
+  - Write
+  - Edit
+  - Bash
+  - Glob
 ---
 
 # Orc Workflow
