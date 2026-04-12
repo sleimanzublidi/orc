@@ -49,7 +49,7 @@ struct InteractiveHandlerTests {
 
         let node = Models.Node(
             id: "prompt-node",
-            agent: "fake",
+            agent: .literal("fake"),
             prompt: "Question?",
             interactive: .prompt(message: "Please approve")
         )
@@ -147,7 +147,7 @@ struct InteractiveHandlerTests {
 
         let node = Models.Node(
             id: "session-node",
-            agent: "fake",
+            agent: .literal("fake"),
             prompt: "start session",
             interactive: .session
         )
@@ -207,7 +207,7 @@ struct InteractiveHandlerTests {
 
         let node = Models.Node(
             id: "session-node",
-            agent: "fake",
+            agent: .literal("fake"),
             prompt: "start session",
             interactive: .session
         )
@@ -246,7 +246,7 @@ struct InteractiveHandlerTests {
 
         let node = Models.Node(
             id: "session-node",
-            agent: "fake",
+            agent: .literal("fake"),
             prompt: "fast task",
             interactive: .session
         )

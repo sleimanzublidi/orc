@@ -46,7 +46,7 @@ struct InteractiveHandler: Sendable {
         sessionName: String,
         nodeExecutionID: String
     ) async throws -> TaskOutput {
-        let provider = try providers.provider(named: node.agent ?? "shell")
+        let provider = try providers.provider(named: node.agent?.literalValue ?? "shell")
 
         // H6: Resolve {{variables}} in the prompt before passing to the provider.
         // Without this, raw template strings like "{{some_var}}" would be sent

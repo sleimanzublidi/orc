@@ -14,9 +14,9 @@ struct ExecutionPlannerTests {
         let workflow = Workflow(
             name: "linear",
             nodes: [
-                Models.Node(id: "A", agent: "fake", prompt: "a"),
-                Models.Node(id: "B", agent: "fake", prompt: "b", dependsOn: ["A"]),
-                Models.Node(id: "C", agent: "fake", prompt: "c", dependsOn: ["B"]),
+                Models.Node(id: "A", agent: .literal("fake"), prompt: "a"),
+                Models.Node(id: "B", agent: .literal("fake"), prompt: "b", dependsOn: ["A"]),
+                Models.Node(id: "C", agent: .literal("fake"), prompt: "c", dependsOn: ["B"]),
             ]
         )
 
@@ -38,10 +38,10 @@ struct ExecutionPlannerTests {
         let workflow = Workflow(
             name: "diamond",
             nodes: [
-                Models.Node(id: "A", agent: "fake", prompt: "a"),
-                Models.Node(id: "B", agent: "fake", prompt: "b", dependsOn: ["A"]),
-                Models.Node(id: "C", agent: "fake", prompt: "c", dependsOn: ["A"]),
-                Models.Node(id: "D", agent: "fake", prompt: "d", dependsOn: ["B", "C"]),
+                Models.Node(id: "A", agent: .literal("fake"), prompt: "a"),
+                Models.Node(id: "B", agent: .literal("fake"), prompt: "b", dependsOn: ["A"]),
+                Models.Node(id: "C", agent: .literal("fake"), prompt: "c", dependsOn: ["A"]),
+                Models.Node(id: "D", agent: .literal("fake"), prompt: "d", dependsOn: ["B", "C"]),
             ]
         )
 
@@ -65,11 +65,11 @@ struct ExecutionPlannerTests {
         let workflow = Workflow(
             name: "fan",
             nodes: [
-                Models.Node(id: "A", agent: "fake", prompt: "a"),
-                Models.Node(id: "B", agent: "fake", prompt: "b", dependsOn: ["A"]),
-                Models.Node(id: "C", agent: "fake", prompt: "c", dependsOn: ["A"]),
-                Models.Node(id: "D", agent: "fake", prompt: "d", dependsOn: ["A"]),
-                Models.Node(id: "E", agent: "fake", prompt: "e", dependsOn: ["B", "C", "D"]),
+                Models.Node(id: "A", agent: .literal("fake"), prompt: "a"),
+                Models.Node(id: "B", agent: .literal("fake"), prompt: "b", dependsOn: ["A"]),
+                Models.Node(id: "C", agent: .literal("fake"), prompt: "c", dependsOn: ["A"]),
+                Models.Node(id: "D", agent: .literal("fake"), prompt: "d", dependsOn: ["A"]),
+                Models.Node(id: "E", agent: .literal("fake"), prompt: "e", dependsOn: ["B", "C", "D"]),
             ]
         )
 
@@ -94,10 +94,10 @@ struct ExecutionPlannerTests {
         let workflow = Workflow(
             name: "parallel",
             nodes: [
-                Models.Node(id: "A", agent: "fake", prompt: "a"),
-                Models.Node(id: "B", agent: "fake", prompt: "b", dependsOn: ["A"]),
-                Models.Node(id: "X", agent: "fake", prompt: "x"),
-                Models.Node(id: "Y", agent: "fake", prompt: "y", dependsOn: ["X"]),
+                Models.Node(id: "A", agent: .literal("fake"), prompt: "a"),
+                Models.Node(id: "B", agent: .literal("fake"), prompt: "b", dependsOn: ["A"]),
+                Models.Node(id: "X", agent: .literal("fake"), prompt: "x"),
+                Models.Node(id: "Y", agent: .literal("fake"), prompt: "y", dependsOn: ["X"]),
             ]
         )
 
@@ -121,9 +121,9 @@ struct ExecutionPlannerTests {
         let workflow = Workflow(
             name: "deps",
             nodes: [
-                Models.Node(id: "A", agent: "fake", prompt: "a"),
-                Models.Node(id: "B", agent: "fake", prompt: "b", dependsOn: ["A"]),
-                Models.Node(id: "C", agent: "fake", prompt: "c", dependsOn: ["A"]),
+                Models.Node(id: "A", agent: .literal("fake"), prompt: "a"),
+                Models.Node(id: "B", agent: .literal("fake"), prompt: "b", dependsOn: ["A"]),
+                Models.Node(id: "C", agent: .literal("fake"), prompt: "c", dependsOn: ["A"]),
             ]
         )
 
@@ -141,7 +141,7 @@ struct ExecutionPlannerTests {
         let workflow = Workflow(
             name: "single",
             nodes: [
-                Models.Node(id: "only", agent: "fake", prompt: "solo")
+                Models.Node(id: "only", agent: .literal("fake"), prompt: "solo")
             ]
         )
 

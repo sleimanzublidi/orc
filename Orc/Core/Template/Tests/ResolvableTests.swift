@@ -367,9 +367,11 @@ struct ResolvableTests {
     func workflowInputDefaultCoding() throws {
         let input = WorkflowInput(name: "timeout", type: "string", required: false, defaultValue: "30")
         let data = try JSONEncoder().encode(input)
-        let json = try JSONDecoder().decode([String: String].self, from: data)
-        #expect(json["default"] == "30")
-        #expect(json["name"] == "timeout")
+        // Decode as generic JSON to check key names — [String: Any] is not Decodable,
+        // so we use JSONSerialization to inspect the raw keys.
+        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        #expect(json["default"] as? String == "30")
+        #expect(json["name"] as? String == "timeout")
     }
 
     @Test("WorkflowInput decodes 'default' key as defaultValue")

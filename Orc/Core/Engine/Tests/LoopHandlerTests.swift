@@ -80,8 +80,8 @@ struct LoopHandlerTests {
             tmux: FakeTmuxProvider()
         )
 
-        let node = Models.Node(id: "loop-node", agent: "fake", prompt: "iterate")
-        let loopConfig = LoopConfig(until: "approved", maxIterations: 5)
+        let node = Models.Node(id: "loop-node", agent: .literal("fake"), prompt: "iterate")
+        let loopConfig = LoopConfig(until: "approved", maxIterations: .literal(5))
         let context = TaskContext(repoRoot: "/tmp/repo", workspacePath: "/tmp/workspace")
 
         _ = try await store.createRun(makeRun())
@@ -105,8 +105,8 @@ struct LoopHandlerTests {
 
         let (handler, _) = makeHandler(fakeProvider: fakeProvider, store: store)
 
-        let node = Models.Node(id: "loop-node", agent: "fake", prompt: "iterate")
-        let loopConfig = LoopConfig(until: "approved", maxIterations: 3)
+        let node = Models.Node(id: "loop-node", agent: .literal("fake"), prompt: "iterate")
+        let loopConfig = LoopConfig(until: "approved", maxIterations: .literal(3))
         let context = TaskContext(repoRoot: "/tmp/repo", workspacePath: "/tmp/workspace")
 
         _ = try await store.createRun(makeRun())
@@ -128,9 +128,9 @@ struct LoopHandlerTests {
 
         let (handler, _) = makeHandler(fakeProvider: fakeProvider, store: store)
 
-        let node = Models.Node(id: "loop-node", agent: "fake", prompt: "iterate")
+        let node = Models.Node(id: "loop-node", agent: .literal("fake"), prompt: "iterate")
         // Use a non-existent evaluator to trigger evaluatorNotFound.
-        let loopConfig = LoopConfig(until: "nonexistent_evaluator", maxIterations: 5)
+        let loopConfig = LoopConfig(until: "nonexistent_evaluator", maxIterations: .literal(5))
         let context = TaskContext(repoRoot: "/tmp/repo", workspacePath: "/tmp/workspace")
 
         _ = try await store.createRun(makeRun())

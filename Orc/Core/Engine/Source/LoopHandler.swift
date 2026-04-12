@@ -37,14 +37,15 @@ struct LoopHandler: Sendable {
         context: TaskContext,
         loopConfig: LoopConfig
     ) async throws -> TaskOutput {
-        let provider = try providers.provider(named: node.agent ?? "shell")
+        let provider = try providers.provider(named: node.agent?.literalValue ?? "shell")
 
         // H5: Acknowledge fresh_context flag. All current providers are stateless
         // (each invocation spawns a new process), so fresh_context: true is the
         // effective default. When fresh_context is false, the intent is to let AI
         // agents maintain conversation context across iterations — but no current
         // provider supports persistent sessions, so we log a warning.
-        if !loopConfig.freshContext {
+        let freshContext = loopConfig.freshContext.literalValue ?? false
+        if !freshContext {
             logger.warning(
                 "fresh_context: false requested for loop node '\(node.id)', but all current providers are stateless — conversation context will not persist across iterations"
             )
@@ -54,11 +55,12 @@ struct LoopHandler: Sendable {
         var previousOutput: String? = nil
         var currentContext = context
 
-        for iteration in 1...loopConfig.maxIterations {
+        let maxIterations = loopConfig.maxIterations.literalValue ?? 10
+        for iteration in 1...maxIterations {
             // Check for task cancellation before each iteration.
             try Task.checkCancellation()
 
-            logger.info("[\(node.id)] iteration \(iteration)/\(loopConfig.maxIterations)...")
+            logger.info("[\(node.id)] iteration \(iteration)/\(maxIterations)...")
 
             // Resolve the prompt template with current context (includes {{last_output}}).
             let resolvedPrompt: String
@@ -75,7 +77,7 @@ struct LoopHandler: Sendable {
                 runID: run.id,
                 nodeID: node.id,
                 status: .running,
-                agent: node.agent,
+                agent: node.agent?.literalValue,
                 attempt: 1,
                 iteration: iteration,
                 prompt: resolvedPrompt,
@@ -167,7 +169,7 @@ struct LoopHandler: Sendable {
 
         throw EngineError.maxIterationsReached(
             nodeID: node.id,
-            count: loopConfig.maxIterations
+            count: maxIterations
         )
     }
 
@@ -190,7 +192,7 @@ struct LoopHandler: Sendable {
         iteration: Int,
         execID: String
     ) async throws -> TaskOutput {
-        let maxAttempts = node.retry?.maxAttempts ?? 1
+        let maxAttempts = node.retry?.maxAttempts.literalValue ?? 1
         var lastError: (any Error)?
 
         for attempt in 1...maxAttempts {
@@ -202,7 +204,7 @@ struct LoopHandler: Sendable {
                         prompt: resolvedPrompt,
                         context: context,
                         sessionName: sessionName,
-                        timeout: node.timeoutSeconds
+                        timeout: node.timeoutSeconds?.literalValue
                     )
 
                     // Poll until the tmux session exits, similar to InteractiveHandler.
@@ -234,12 +236,12 @@ struct LoopHandler: Sendable {
 
                 // Standard (non-interactive) execution.
                 return try await provider.execute(
-                    prompt: resolvedPrompt, context: context, timeout: node.timeoutSeconds, permissionMode: node.permissionMode
+                    prompt: resolvedPrompt, context: context, timeout: node.timeoutSeconds?.literalValue, permissionMode: node.permissionMode?.literalValue
                 )
             } catch {
                 lastError = error
                 if attempt < maxAttempts {
-                    if let delay = node.retry?.delaySeconds, delay > 0 {
+                    if let delay = node.retry?.delaySeconds.literalValue, delay > 0 {
                         try? await Task.sleep(nanoseconds: UInt64(delay) * 1_000_000_000)
                     }
                 }

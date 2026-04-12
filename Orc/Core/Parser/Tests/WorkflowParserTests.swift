@@ -64,13 +64,13 @@ struct ValidWorkflowTests {
         // Plan node
         let plan = workflow.nodes[0]
         #expect(plan.id == "plan")
-        #expect(plan.agent == "claude-code")
+        #expect(plan.agent == .literal("claude-code"))
         #expect(plan.prompt == "Create a plan for {{repo_path}}")
         #expect(plan.output == "plan_file")
-        #expect(plan.timeoutSeconds == 300)
-        #expect(plan.retry?.maxAttempts == 2)
-        #expect(plan.retry?.delaySeconds == 5)
-        #expect(plan.onFailure == .skip)
+        #expect(plan.timeoutSeconds == .literal(300))
+        #expect(plan.retry?.maxAttempts == .literal(2))
+        #expect(plan.retry?.delaySeconds == .literal(5))
+        #expect(plan.onFailure == .literal(.skip))
         #expect(plan.dependsOn.isEmpty)
 
         // Implement node
@@ -78,7 +78,7 @@ struct ValidWorkflowTests {
         #expect(implement.id == "implement")
         #expect(implement.dependsOn == ["plan"])
         #expect(implement.when == "{{plan.status}} == 'completed'")
-        #expect(implement.workspaceMode == .isolated)
+        #expect(implement.workspaceMode == .literal(.isolated))
 
         // Review node
         let review = workflow.nodes[2]
@@ -108,9 +108,9 @@ struct ValidWorkflowTests {
 
         let node = workflow.nodes[0]
         #expect(node.id == "step1")
-        #expect(node.agent == "claude-code")
+        #expect(node.agent == .literal("claude-code"))
         #expect(node.dependsOn.isEmpty)
-        #expect(node.onFailure == .stop)
+        #expect(node.onFailure == .literal(.stop))
         #expect(node.interactive == nil)
         #expect(node.loop == nil)
         #expect(node.retry == nil)
@@ -133,7 +133,7 @@ struct ValidWorkflowTests {
         """
 
         let workflow = try parser.parse(yaml: yaml)
-        #expect(workflow.nodes[0].permissionMode == .full)
+        #expect(workflow.nodes[0].permissionMode == .literal(.full))
     }
 
     @Test("Invalid permission_mode throws")
@@ -171,8 +171,8 @@ struct ValidWorkflowTests {
 
         #expect(node.prompt == "Do iteration work")
         #expect(node.loop?.until == "all_done")
-        #expect(node.loop?.maxIterations == 20)
-        #expect(node.loop?.freshContext == true)
+        #expect(node.loop?.maxIterations == .literal(20))
+        #expect(node.loop?.freshContext == .literal(true))
     }
 
     @Test("Workflow with interactive session node")
@@ -228,7 +228,7 @@ struct ValidWorkflowTests {
 
         #expect(node.workflow == "./sub-workflow.yaml")
         #expect(node.inputs?["path"] == "{{workspace}}")
-        #expect(node.workspaceMode == .isolated)
+        #expect(node.workspaceMode == .literal(.isolated))
     }
 
     @Test("Workflow with output aliases")
@@ -289,9 +289,9 @@ struct ValidWorkflowTests {
         let workflow = try parser.parse(yaml: yaml)
         let node = workflow.nodes[0]
 
-        #expect(node.retry?.maxAttempts == 5)
-        #expect(node.retry?.delaySeconds == 10)
-        #expect(node.timeoutSeconds == 600)
+        #expect(node.retry?.maxAttempts == .literal(5))
+        #expect(node.retry?.delaySeconds == .literal(10))
+        #expect(node.timeoutSeconds == .literal(600))
     }
 
     @Test("Workflow with cleanup policy")
@@ -336,7 +336,7 @@ struct ValidWorkflowTests {
         """
 
         let workflow = try parser.parse(yaml: yaml)
-        #expect(workflow.nodes[0].onFailure == .continue)
+        #expect(workflow.nodes[0].onFailure == .literal(.continue))
     }
 }
 
@@ -745,8 +745,8 @@ struct EdgeCaseTests {
         let workflow = try parser.parse(yaml: yaml)
         let node = workflow.nodes[0]
 
-        #expect(node.loop?.maxIterations == 10)
-        #expect(node.loop?.freshContext == false)
+        #expect(node.loop?.maxIterations == .literal(10))
+        #expect(node.loop?.freshContext == .literal(false))
     }
 
     @Test("Retry config with default values")
@@ -764,8 +764,8 @@ struct EdgeCaseTests {
         let workflow = try parser.parse(yaml: yaml)
         let node = workflow.nodes[0]
 
-        #expect(node.retry?.maxAttempts == 3)
-        #expect(node.retry?.delaySeconds == 0)
+        #expect(node.retry?.maxAttempts == .literal(3))
+        #expect(node.retry?.delaySeconds == .literal(0))
     }
 
     @Test("Output alias collides with input name produces error")
@@ -796,9 +796,9 @@ struct DAGValidatorTests {
     @Test("Topological sort of linear chain")
     func linearChain() throws {
         let nodes = [
-            Node(id: "a", agent: "x", prompt: "A"),
-            Node(id: "b", agent: "x", prompt: "B", dependsOn: ["a"]),
-            Node(id: "c", agent: "x", prompt: "C", dependsOn: ["b"]),
+            Node(id: "a", agent: .literal("x"), prompt: "A"),
+            Node(id: "b", agent: .literal("x"), prompt: "B", dependsOn: ["a"]),
+            Node(id: "c", agent: .literal("x"), prompt: "C", dependsOn: ["b"]),
         ]
 
         let sorted = try DAGValidator.topologicalSort(nodes: nodes)
@@ -813,10 +813,10 @@ struct DAGValidatorTests {
     @Test("Topological sort of diamond graph")
     func diamondGraph() throws {
         let nodes = [
-            Node(id: "a", agent: "x", prompt: "A"),
-            Node(id: "b", agent: "x", prompt: "B", dependsOn: ["a"]),
-            Node(id: "c", agent: "x", prompt: "C", dependsOn: ["a"]),
-            Node(id: "d", agent: "x", prompt: "D", dependsOn: ["b", "c"]),
+            Node(id: "a", agent: .literal("x"), prompt: "A"),
+            Node(id: "b", agent: .literal("x"), prompt: "B", dependsOn: ["a"]),
+            Node(id: "c", agent: .literal("x"), prompt: "C", dependsOn: ["a"]),
+            Node(id: "d", agent: .literal("x"), prompt: "D", dependsOn: ["b", "c"]),
         ]
 
         let sorted = try DAGValidator.topologicalSort(nodes: nodes)
@@ -835,8 +835,8 @@ struct DAGValidatorTests {
     @Test("Cycle detection throws with cycle info")
     func cycleDetection() {
         let nodes = [
-            Node(id: "a", agent: "x", prompt: "A", dependsOn: ["b"]),
-            Node(id: "b", agent: "x", prompt: "B", dependsOn: ["a"]),
+            Node(id: "a", agent: .literal("x"), prompt: "A", dependsOn: ["b"]),
+            Node(id: "b", agent: .literal("x"), prompt: "B", dependsOn: ["a"]),
         ]
 
         #expect(throws: ParserError.self) {
@@ -847,9 +847,9 @@ struct DAGValidatorTests {
     @Test("Independent nodes all appear in sorted output")
     func independentNodes() throws {
         let nodes = [
-            Node(id: "x", agent: "a", prompt: "X"),
-            Node(id: "y", agent: "a", prompt: "Y"),
-            Node(id: "z", agent: "a", prompt: "Z"),
+            Node(id: "x", agent: .literal("a"), prompt: "X"),
+            Node(id: "y", agent: .literal("a"), prompt: "Y"),
+            Node(id: "z", agent: .literal("a"), prompt: "Z"),
         ]
 
         let sorted = try DAGValidator.topologicalSort(nodes: nodes)

@@ -85,7 +85,7 @@ enum TestFixtures {
         let nodes = (0..<nodeCount).map { i in
             Node(
                 id: "node\(i)",
-                agent: "shell",
+                agent: .literal("shell"),
                 prompt: "echo hello"
             )
         }

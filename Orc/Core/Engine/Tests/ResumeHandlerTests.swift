@@ -66,8 +66,8 @@ struct ResumeHandlerTests {
         let workflow = Workflow(
             name: "test-workflow",
             nodes: [
-                Node(id: "step1", agent: "fake", prompt: "do something"),
-                Node(id: "step2", agent: "fake", prompt: "do more", dependsOn: ["step1"]),
+                Node(id: "step1", agent: .literal("fake"), prompt: "do something"),
+                Node(id: "step2", agent: .literal("fake"), prompt: "do more", dependsOn: ["step1"]),
             ]
         )
         let parser = FakeWorkflowParser(workflow: workflow)
@@ -105,9 +105,9 @@ struct ResumeHandlerTests {
         let workflow = Workflow(
             name: "test-workflow",
             nodes: [
-                Node(id: "step1", agent: "fake", prompt: "first"),
-                Node(id: "step2", agent: "fake", prompt: "second"),
-                Node(id: "step3", agent: "fake", prompt: "third"),
+                Node(id: "step1", agent: .literal("fake"), prompt: "first"),
+                Node(id: "step2", agent: .literal("fake"), prompt: "second"),
+                Node(id: "step3", agent: .literal("fake"), prompt: "third"),
             ]
         )
         let parser = FakeWorkflowParser(workflow: workflow)
@@ -140,8 +140,8 @@ struct ResumeHandlerTests {
         let workflow = Workflow(
             name: "test-workflow",
             nodes: [
-                Node(id: "step1", agent: "fake", prompt: "first"),
-                Node(id: "step2", agent: "fake", prompt: "second"),
+                Node(id: "step1", agent: .literal("fake"), prompt: "first"),
+                Node(id: "step2", agent: .literal("fake"), prompt: "second"),
             ]
         )
         let parser = FakeWorkflowParser(workflow: workflow)
@@ -223,7 +223,7 @@ struct ResumeHandlerTests {
         let workflow = Workflow(
             name: "test-workflow",
             nodes: [
-                Node(id: "step2", agent: "fake", prompt: "only step now"),
+                Node(id: "step2", agent: .literal("fake"), prompt: "only step now"),
             ]
         )
         let parser = FakeWorkflowParser(workflow: workflow)

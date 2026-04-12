@@ -43,7 +43,7 @@ struct WorkflowEngineTests {
         let workflow = Workflow(
             name: "test",
             nodes: [
-                Models.Node(id: "A", agent: "fake", prompt: "do A")
+                Models.Node(id: "A", agent: .literal("fake"), prompt: "do A")
             ]
         )
         let parser = FakeWorkflowParser(workflow: workflow)
@@ -69,7 +69,7 @@ struct WorkflowEngineTests {
         let workflow = Workflow(
             name: "stats-test",
             nodes: [
-                Models.Node(id: "A", agent: "fake", prompt: "do A")
+                Models.Node(id: "A", agent: .literal("fake"), prompt: "do A")
             ]
         )
         let parser = FakeWorkflowParser(workflow: workflow)
@@ -186,7 +186,7 @@ struct WorkflowEngineTests {
         let workflow = Workflow(
             name: "test",
             nodes: [
-                Models.Node(id: "A", agent: "fake", prompt: "do A")
+                Models.Node(id: "A", agent: .literal("fake"), prompt: "do A")
             ]
         )
         let parser = FakeWorkflowParser(workflow: workflow)
@@ -211,7 +211,7 @@ struct WorkflowEngineTests {
         let workflow = Workflow(
             name: "canon-test",
             nodes: [
-                Models.Node(id: "A", agent: "fake", prompt: "do A")
+                Models.Node(id: "A", agent: .literal("fake"), prompt: "do A")
             ]
         )
         let parser = FakeWorkflowParser(workflow: workflow)
@@ -251,9 +251,9 @@ struct WorkflowEngineTests {
         let workflow = Workflow(
             name: "test",
             nodes: [
-                Models.Node(id: "prompt-node", agent: "fake",
+                Models.Node(id: "prompt-node", agent: .literal("fake"),
                             interactive: .prompt(message: "approve?")),
-                Models.Node(id: "downstream", agent: "fake", prompt: "do next",
+                Models.Node(id: "downstream", agent: .literal("fake"), prompt: "do next",
                             dependsOn: ["prompt-node"]),
             ]
         )

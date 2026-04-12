@@ -29,6 +29,7 @@ struct LocalizedErrorTests {
             .circularDependency(cycle: ["A", "B", "C"]),
             .invalidReference(node: "deploy", ref: "missing"),
             .invalidExpression(node: "check", detail: "unbalanced parens"),
+            .invalidFieldType(node: "step-1", field: "timeout_seconds", expected: "integer or template string"),
         ]
         for parserError in cases {
             let anyError: any Error = parserError
@@ -130,6 +131,7 @@ struct LocalizedErrorTests {
             .malformedTemplate(detail: "unclosed {{"),
             .expressionSyntax(detail: "missing operand"),
             .expressionEvaluation(detail: "type mismatch"),
+            .invalidConversion(value: "abc", targetType: "Int"),
         ]
         for templateError in cases {
             let anyError: any Error = templateError
@@ -149,7 +151,7 @@ struct LocalizedErrorTests {
         let store = FakeWorkflowStore()
 
         let nodes = [
-            Models.Node(id: "failing-node", agent: "fake", prompt: "do something"),
+            Models.Node(id: "failing-node", agent: .literal("fake"), prompt: "do something"),
         ]
         let workflow = Workflow(name: "test", nodes: nodes)
         let planner = ExecutionPlanner()

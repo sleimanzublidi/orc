@@ -80,7 +80,7 @@ struct NodeDispatcherTests {
         fakeProvider.defaultOutput = "result-A"
         let store = FakeWorkflowStore()
 
-        let nodes = [Models.Node(id: "A", agent: "fake", prompt: "do A")]
+        let nodes = [Models.Node(id: "A", agent: .literal("fake"), prompt: "do A")]
         let (dispatcher, _, run) = try makeDispatcher(
             nodes: nodes, fakeProvider: fakeProvider, store: store
         )
@@ -100,8 +100,8 @@ struct NodeDispatcherTests {
         let store = FakeWorkflowStore()
 
         let nodes = [
-            Models.Node(id: "A", agent: "fake", prompt: "do A"),
-            Models.Node(id: "B", agent: "fake", prompt: "use {{A.output}}", dependsOn: ["A"]),
+            Models.Node(id: "A", agent: .literal("fake"), prompt: "do A"),
+            Models.Node(id: "B", agent: .literal("fake"), prompt: "use {{A.output}}", dependsOn: ["A"]),
         ]
         let (dispatcher, _, run) = try makeDispatcher(
             nodes: nodes, fakeProvider: fakeProvider, store: store
@@ -128,10 +128,10 @@ struct NodeDispatcherTests {
         let store = FakeWorkflowStore()
 
         let nodes = [
-            Models.Node(id: "A", agent: "fake", prompt: "do A"),
+            Models.Node(id: "A", agent: .literal("fake"), prompt: "do A"),
             // when: expression references A.status which will be 'completed'
             // This expression will be false because 'completed' != 'failed'
-            Models.Node(id: "B", agent: "fake", prompt: "do B", dependsOn: ["A"],
+            Models.Node(id: "B", agent: .literal("fake"), prompt: "do B", dependsOn: ["A"],
                         when: "{{A.status}} == 'failed'"),
         ]
         let (dispatcher, _, run) = try makeDispatcher(
@@ -155,8 +155,8 @@ struct NodeDispatcherTests {
         let store = FakeWorkflowStore()
 
         let nodes = [
-            Models.Node(id: "A", agent: "fake", prompt: "do A"),
-            Models.Node(id: "B", agent: "fake", prompt: "do B", dependsOn: ["A"],
+            Models.Node(id: "A", agent: .literal("fake"), prompt: "do A"),
+            Models.Node(id: "B", agent: .literal("fake"), prompt: "do B", dependsOn: ["A"],
                         when: "{{A.status}} == 'completed'"),
         ]
         let (dispatcher, _, run) = try makeDispatcher(
@@ -179,12 +179,12 @@ struct NodeDispatcherTests {
         let store = FakeWorkflowStore()
 
         let nodes = [
-            Models.Node(id: "A", agent: "fake", prompt: "do A"),
+            Models.Node(id: "A", agent: .literal("fake"), prompt: "do A"),
             // B is always skipped (when: false)
-            Models.Node(id: "B", agent: "fake", prompt: "do B", dependsOn: ["A"],
+            Models.Node(id: "B", agent: .literal("fake"), prompt: "do B", dependsOn: ["A"],
                         when: "'false' == 'true'"),
             // C depends only on B — since B is skipped, C should be skipped too.
-            Models.Node(id: "C", agent: "fake", prompt: "do C", dependsOn: ["B"]),
+            Models.Node(id: "C", agent: .literal("fake"), prompt: "do C", dependsOn: ["B"]),
         ]
         let (dispatcher, _, run) = try makeDispatcher(
             nodes: nodes, fakeProvider: fakeProvider, store: store
@@ -205,12 +205,12 @@ struct NodeDispatcherTests {
         let store = FakeWorkflowStore()
 
         let nodes = [
-            Models.Node(id: "A", agent: "fake", prompt: "do A"),
+            Models.Node(id: "A", agent: .literal("fake"), prompt: "do A"),
             // B is always skipped
-            Models.Node(id: "B", agent: "fake", prompt: "do B",
+            Models.Node(id: "B", agent: .literal("fake"), prompt: "do B",
                         when: "'false' == 'true'"),
             // C depends on both A (completed) and B (skipped) — should still run.
-            Models.Node(id: "C", agent: "fake", prompt: "do C", dependsOn: ["A", "B"]),
+            Models.Node(id: "C", agent: .literal("fake"), prompt: "do C", dependsOn: ["A", "B"]),
         ]
         let (dispatcher, _, run) = try makeDispatcher(
             nodes: nodes, fakeProvider: fakeProvider, store: store
@@ -237,8 +237,8 @@ struct NodeDispatcherTests {
         )
 
         let nodes = [
-            Models.Node(id: "A", agent: "fake", prompt: "fail", onFailure: .stop),
-            Models.Node(id: "B", agent: "fake", prompt: "do B", dependsOn: ["A"]),
+            Models.Node(id: "A", agent: .literal("fake"), prompt: "fail", onFailure: .literal(.stop)),
+            Models.Node(id: "B", agent: .literal("fake"), prompt: "do B", dependsOn: ["A"]),
         ]
         let (dispatcher, _, run) = try makeDispatcher(
             nodes: nodes, fakeProvider: fakeProvider, store: store
@@ -268,8 +268,8 @@ struct NodeDispatcherTests {
         let registry = ProviderRegistry(providers: [failingProvider, goodProvider])
 
         let nodes = [
-            Models.Node(id: "A", agent: "failing", prompt: "fail", onFailure: .continue),
-            Models.Node(id: "B", agent: "good", prompt: "do B", dependsOn: ["A"]),
+            Models.Node(id: "A", agent: .literal("failing"), prompt: "fail", onFailure: .literal(.continue)),
+            Models.Node(id: "B", agent: .literal("good"), prompt: "do B", dependsOn: ["A"]),
         ]
 
         let workflow = Workflow(name: "test", nodes: nodes)
@@ -334,9 +334,9 @@ struct NodeDispatcherTests {
         let registry = ProviderRegistry(providers: [goodProvider, failingProvider])
 
         let nodes = [
-            Models.Node(id: "A", agent: "good", prompt: "do A"),
-            Models.Node(id: "B", agent: "failing", prompt: "fail B", dependsOn: ["A"], onFailure: .skip),
-            Models.Node(id: "C", agent: "good", prompt: "do C", dependsOn: ["B"]),
+            Models.Node(id: "A", agent: .literal("good"), prompt: "do A"),
+            Models.Node(id: "B", agent: .literal("failing"), prompt: "fail B", dependsOn: ["A"], onFailure: .literal(.skip)),
+            Models.Node(id: "C", agent: .literal("good"), prompt: "do C", dependsOn: ["B"]),
         ]
 
         let workflow = Workflow(name: "test", nodes: nodes)
@@ -411,8 +411,8 @@ struct NodeDispatcherTests {
         let store = FakeWorkflowStore()
 
         let nodes = [
-            Models.Node(id: "A", agent: "fake", prompt: "do A"),
-            Models.Node(id: "B", agent: "fake", prompt: "do B", dependsOn: ["A"]),
+            Models.Node(id: "A", agent: .literal("fake"), prompt: "do A"),
+            Models.Node(id: "B", agent: .literal("fake"), prompt: "do B", dependsOn: ["A"]),
         ]
         let (dispatcher, _, run) = try makeDispatcher(
             nodes: nodes, fakeProvider: fakeProvider, store: store
@@ -440,10 +440,10 @@ struct NodeDispatcherTests {
         let store = FakeWorkflowStore()
 
         let nodes = [
-            Models.Node(id: "A", agent: "fake", prompt: "A"),
-            Models.Node(id: "B", agent: "fake", prompt: "B", dependsOn: ["A"]),
-            Models.Node(id: "C", agent: "fake", prompt: "C", dependsOn: ["A"]),
-            Models.Node(id: "D", agent: "fake", prompt: "D", dependsOn: ["B", "C"]),
+            Models.Node(id: "A", agent: .literal("fake"), prompt: "A"),
+            Models.Node(id: "B", agent: .literal("fake"), prompt: "B", dependsOn: ["A"]),
+            Models.Node(id: "C", agent: .literal("fake"), prompt: "C", dependsOn: ["A"]),
+            Models.Node(id: "D", agent: .literal("fake"), prompt: "D", dependsOn: ["B", "C"]),
         ]
         let (dispatcher, _, run) = try makeDispatcher(
             nodes: nodes, fakeProvider: fakeProvider, store: store
@@ -469,7 +469,7 @@ struct NodeDispatcherTests {
         let childWorkflow = Workflow(
             name: "child-workflow",
             nodes: [
-                Models.Node(id: "child-step", agent: "fake", prompt: "do child work")
+                Models.Node(id: "child-step", agent: .literal("fake"), prompt: "do child work")
             ]
         )
         var parser = FakeWorkflowParser()
@@ -503,7 +503,7 @@ struct NodeDispatcherTests {
         let childWorkflow = Workflow(
             name: "child-with-inputs",
             nodes: [
-                Models.Node(id: "child-step", agent: "fake", prompt: "process {{data}}")
+                Models.Node(id: "child-step", agent: .literal("fake"), prompt: "process {{data}}")
             ]
         )
         var parser = FakeWorkflowParser()
@@ -511,7 +511,7 @@ struct NodeDispatcherTests {
 
         // Parent: A produces output, then nest-node passes A's output as "data" input.
         let nodes = [
-            Models.Node(id: "A", agent: "fake", prompt: "do A", output: "a_output"),
+            Models.Node(id: "A", agent: .literal("fake"), prompt: "do A", output: "a_output"),
             Models.Node(
                 id: "nest",
                 dependsOn: ["A"],
@@ -546,14 +546,14 @@ struct NodeDispatcherTests {
         let childWorkflow = Workflow(
             name: "failing-child",
             nodes: [
-                Models.Node(id: "child-step", agent: "fake", prompt: "will fail")
+                Models.Node(id: "child-step", agent: .literal("fake"), prompt: "will fail")
             ]
         )
         var parser = FakeWorkflowParser()
         parser.workflowsByFile["failing-child.yml"] = childWorkflow
 
         let nodes = [
-            Models.Node(id: "nest", onFailure: .stop, workflow: "failing-child.yml"),
+            Models.Node(id: "nest", onFailure: .literal(.stop), workflow: "failing-child.yml"),
         ]
         let (dispatcher, _, run) = try makeDispatcher(
             nodes: nodes, fakeProvider: fakeProvider, store: store, parser: parser
@@ -575,7 +575,7 @@ struct NodeDispatcherTests {
         let childWorkflow = Workflow(
             name: "shared-child",
             nodes: [
-                Models.Node(id: "child-step", agent: "fake", prompt: "shared work")
+                Models.Node(id: "child-step", agent: .literal("fake"), prompt: "shared work")
             ]
         )
         var parser = FakeWorkflowParser()
@@ -612,7 +612,7 @@ struct NodeDispatcherTests {
         let childWorkflow = Workflow(
             name: "isolated-child",
             nodes: [
-                Models.Node(id: "child-step", agent: "fake", prompt: "isolated work")
+                Models.Node(id: "child-step", agent: .literal("fake"), prompt: "isolated work")
             ]
         )
         var parser = FakeWorkflowParser()
@@ -629,7 +629,7 @@ struct NodeDispatcherTests {
             Models.Node(
                 id: "nest",
                 workflow: "isolated-child.yml",
-                workspaceMode: .isolated
+                workspaceMode: .literal(.isolated)
             ),
         ]
 
@@ -710,7 +710,7 @@ struct NodeDispatcherTests {
         let nodes = [
             Models.Node(
                 id: "interactive-A",
-                agent: "fake",
+                agent: .literal("fake"),
                 prompt: "start session",
                 interactive: .session
             ),
@@ -780,7 +780,7 @@ struct NodeDispatcherTests {
         let nodes = [
             Models.Node(
                 id: "prompt-A",
-                agent: "fake",
+                agent: .literal("fake"),
                 prompt: "question",
                 interactive: .prompt(message: "Please answer")
             ),

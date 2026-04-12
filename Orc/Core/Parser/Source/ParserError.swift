@@ -26,6 +26,9 @@ public enum ParserError: Error, Sendable, Equatable {
     /// A `when:` expression or template variable has invalid syntax.
     case invalidExpression(node: String, detail: String)
 
+    /// A field value has the wrong type (e.g., an integer where a string was expected).
+    case invalidFieldType(node: String, field: String, expected: String)
+
     /// Structural validation produced one or more errors.
     case validation(errors: [ValidationError])
 }
@@ -46,6 +49,8 @@ extension ParserError: CustomStringConvertible {
             return "[\(node)] Invalid reference to '\(ref)'"
         case .invalidExpression(let node, let detail):
             return "[\(node)] Invalid expression: \(detail)"
+        case .invalidFieldType(let node, let field, let expected):
+            return "[\(node)] Field '\(field)' has invalid type; expected \(expected)"
         case .validation(let errors):
             // Indent all error lines consistently with a 2-space prefix.
             return errors.map { err in

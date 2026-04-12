@@ -27,7 +27,7 @@ struct FakeWorkflowParser: WorkflowParsing, Sendable {
         self.workflowToReturn = workflow ?? Workflow(
             name: "test-workflow",
             nodes: [
-                Models.Node(id: "step1", agent: "fake", prompt: "do something")
+                Models.Node(id: "step1", agent: .literal("fake"), prompt: "do something")
             ]
         )
         self.workflowsByFile = [:]

@@ -144,7 +144,7 @@ struct NodeDispatcher: Sendable {
                     awaitingNodes.insert(nodeID)
                 } else if status == .failed {
                     let node = plan.nodesByID[nodeID]
-                    let strategy = node?.onFailure ?? .stop
+                    let strategy = node?.onFailure.literalValue ?? .stop
 
                     switch strategy {
                     case .stop:
@@ -327,7 +327,7 @@ struct NodeDispatcher: Sendable {
         context: TaskContext
     ) async -> (String, NodeStatus, String?, (any Error)?) {
         let execID = UUID().uuidString
-        let agentName = node.agent ?? "shell"
+        let agentName = node.agent?.literalValue ?? "shell"
 
         // Resolve the prompt/command template.
         let resolvedPrompt: String
@@ -374,7 +374,7 @@ struct NodeDispatcher: Sendable {
         }
 
         // Execute with retry support.
-        let maxAttempts = node.retry?.maxAttempts ?? 1
+        let maxAttempts = node.retry?.maxAttempts.literalValue ?? 1
         var lastError: (any Error)?
 
         for attempt in 1...maxAttempts {
@@ -383,7 +383,7 @@ struct NodeDispatcher: Sendable {
             }
             do {
                 let provider = try providers.provider(named: agentName)
-                let output = try await provider.execute(prompt: resolvedPrompt, context: context, timeout: node.timeoutSeconds, permissionMode: node.permissionMode)
+                let output = try await provider.execute(prompt: resolvedPrompt, context: context, timeout: node.timeoutSeconds?.literalValue, permissionMode: node.permissionMode?.literalValue)
 
                 try await store.updateNodeExecution(
                     id: execID,
@@ -397,7 +397,7 @@ struct NodeDispatcher: Sendable {
                 lastError = error
                 logger.debug("[\(node.id)] attempt \(attempt)/\(maxAttempts) failed: \(error.localizedDescription)")
                 if attempt < maxAttempts {
-                    if let delay = node.retry?.delaySeconds, delay > 0 {
+                    if let delay = node.retry?.delaySeconds.literalValue, delay > 0 {
                         try? await Task.sleep(nanoseconds: UInt64(delay) * 1_000_000_000)
                     }
                 }
@@ -451,7 +451,7 @@ struct NodeDispatcher: Sendable {
             runID: run.id,
             nodeID: node.id,
             status: .running,
-            agent: node.agent,
+            agent: node.agent?.literalValue,
             message: message,
             tmuxSession: sessionName,
             startedAt: Date()
@@ -466,7 +466,7 @@ struct NodeDispatcher: Sendable {
         case .session:
             // sessionName is guaranteed non-nil in the .session branch.
             let resolvedSessionName = sessionName!
-            let maxAttempts = node.retry?.maxAttempts ?? 1
+            let maxAttempts = node.retry?.maxAttempts.literalValue ?? 1
             var lastError: (any Error)?
 
             for attempt in 1...maxAttempts {
@@ -485,7 +485,7 @@ struct NodeDispatcher: Sendable {
                 } catch {
                     lastError = error
                     if attempt < maxAttempts {
-                        if let delay = node.retry?.delaySeconds, delay > 0 {
+                        if let delay = node.retry?.delaySeconds.literalValue, delay > 0 {
                             try? await Task.sleep(nanoseconds: UInt64(delay) * 1_000_000_000)
                         }
                     }
@@ -539,7 +539,7 @@ struct NodeDispatcher: Sendable {
         run: Run,
         context: TaskContext
     ) async -> (String, NodeStatus, String?, (any Error)?) {
-        let maxAttempts = node.retry?.maxAttempts ?? 1
+        let maxAttempts = node.retry?.maxAttempts.literalValue ?? 1
         var lastError: (any Error)?
 
         for attempt in 1...maxAttempts {
@@ -551,7 +551,7 @@ struct NodeDispatcher: Sendable {
             } catch {
                 lastError = error
                 if attempt < maxAttempts {
-                    if let delay = node.retry?.delaySeconds, delay > 0 {
+                    if let delay = node.retry?.delaySeconds.literalValue, delay > 0 {
                         try? await Task.sleep(nanoseconds: UInt64(delay) * 1_000_000_000)
                     }
                 }
@@ -657,7 +657,7 @@ struct NodeDispatcher: Sendable {
         //    shared (default): child uses parent's workspace path.
         //    isolated: child gets a sub-workspace directory.
         let childWorkspacePath: String
-        let workspaceMode = node.workspaceMode ?? .shared
+        let workspaceMode = node.workspaceMode?.literalValue ?? .shared
 
         switch workspaceMode {
         case .shared:
@@ -884,7 +884,7 @@ struct NodeDispatcher: Sendable {
             case .failed:
                 allSkipped = false
                 let depNode = plan.nodesByID[depID]
-                let strategy = depNode?.onFailure ?? .stop
+                let strategy = depNode?.onFailure.literalValue ?? .stop
                 switch strategy {
                 case .stop:
                     hasBlockingFailure = true
@@ -941,7 +941,7 @@ struct NodeDispatcher: Sendable {
                 case .failed:
                     // A failed dep with on_failure: .skip counts as unsatisfied.
                     let upNode = plan.nodesByID[upstreamID]
-                    return upNode?.onFailure == .skip
+                    return upNode?.onFailure == .literal(.skip)
                 default:
                     return false
                 }

@@ -285,8 +285,9 @@ struct WorkflowParser: WorkflowParsing, Sendable {
         }
         let type = dict["type"] as? String ?? "string"
         let required = dict["required"] as? Bool ?? true
+        let defaultValue = dict["default"] as? String
 
-        return WorkflowInput(name: name, type: type, required: required)
+        return WorkflowInput(name: name, type: type, required: required, defaultValue: defaultValue)
     }
 
     // MARK: - Node Mapping
@@ -297,7 +298,7 @@ struct WorkflowParser: WorkflowParsing, Sendable {
             throw ParserError.missingField(node: nil, field: "id")
         }
 
-        let agent = dict["agent"] as? String
+        let agent = mapResolvableString(dict, key: "agent")
         var prompt = dict["prompt"] as? String
         let command = dict["command"] as? String
 
@@ -348,27 +349,18 @@ struct WorkflowParser: WorkflowParsing, Sendable {
         // retry (optional dict)
         let retry: RetryConfig?
         if let retryDict = dict["retry"] as? [String: Any] {
-            retry = mapRetryConfig(from: retryDict)
+            retry = try mapRetryConfig(from: retryDict, nodeID: id)
         } else {
             retry = nil
         }
 
         // timeout_seconds (optional)
-        let timeoutSeconds = dict["timeout_seconds"] as? Int
+        let timeoutSeconds = try mapResolvableInt(dict, key: "timeout_seconds", nodeID: id)
 
-        // on_failure (optional, defaults to "stop")
-        let onFailure: FailureStrategy
-        if let failStr = dict["on_failure"] as? String {
-            guard let strategy = FailureStrategy(rawValue: failStr) else {
-                throw ParserError.invalidExpression(
-                    node: id,
-                    detail: "Invalid on_failure value '\(failStr)'; expected 'stop', 'skip', or 'continue'"
-                )
-            }
-            onFailure = strategy
-        } else {
-            onFailure = .stop
-        }
+        // on_failure (optional, defaults to .literal(.stop))
+        let onFailure: Resolvable<FailureStrategy> = try mapResolvableEnum(
+            dict, key: "on_failure", nodeID: id, typeName: "FailureStrategy"
+        ) ?? .literal(.stop)
 
         // workflow (optional — nested workflow path)
         let workflow = dict["workflow"] as? String
@@ -376,33 +368,15 @@ struct WorkflowParser: WorkflowParsing, Sendable {
         // inputs (optional dict for nested workflows)
         let inputs = dict["inputs"] as? [String: String]
 
-        // workspace (optional — "shared" or "isolated")
-        let workspaceMode: WorkspaceMode?
-        if let wsStr = dict["workspace"] as? String {
-            guard let mode = WorkspaceMode(rawValue: wsStr) else {
-                throw ParserError.invalidExpression(
-                    node: id,
-                    detail: "Invalid workspace mode '\(wsStr)'; expected 'shared' or 'isolated'"
-                )
-            }
-            workspaceMode = mode
-        } else {
-            workspaceMode = nil
-        }
+        // workspace (optional)
+        let workspaceMode: Resolvable<WorkspaceMode>? = try mapResolvableEnum(
+            dict, key: "workspace", nodeID: id, typeName: "WorkspaceMode"
+        )
 
-        // permission_mode (optional — claude-code --permission-mode value)
-        let permissionMode: PermissionMode?
-        if let pmStr = dict["permission_mode"] as? String {
-            guard let mode = PermissionMode(rawValue: pmStr) else {
-                throw ParserError.invalidExpression(
-                    node: id,
-                    detail: "Invalid permission mode '\(pmStr)'; expected 'default', 'acceptEdits', 'full', 'plan', or 'bypassPermissions'"
-                )
-            }
-            permissionMode = mode
-        } else {
-            permissionMode = nil
-        }
+        // permission_mode (optional)
+        let permissionMode: Resolvable<PermissionMode>? = try mapResolvableEnum(
+            dict, key: "permission_mode", nodeID: id, typeName: "PermissionMode"
+        )
 
         return Node(
             id: id,
@@ -429,8 +403,8 @@ struct WorkflowParser: WorkflowParsing, Sendable {
         guard let until = dict["until"] as? String else {
             throw ParserError.missingField(node: nodeID, field: "loop.until")
         }
-        let maxIterations = dict["max_iterations"] as? Int ?? 10
-        let freshContext = dict["fresh_context"] as? Bool ?? false
+        let maxIterations = try mapResolvableInt(dict, key: "max_iterations", nodeID: nodeID) ?? .literal(10)
+        let freshContext = try mapResolvableBool(dict, key: "fresh_context", nodeID: nodeID) ?? .literal(false)
 
         return LoopConfig(
             until: until,
@@ -440,9 +414,9 @@ struct WorkflowParser: WorkflowParsing, Sendable {
     }
 
     /// Maps a retry dictionary to `RetryConfig`.
-    private func mapRetryConfig(from dict: [String: Any]) -> RetryConfig {
-        let maxAttempts = dict["max_attempts"] as? Int ?? 1
-        let delaySeconds = dict["delay_seconds"] as? Int ?? 0
+    private func mapRetryConfig(from dict: [String: Any], nodeID: String) throws -> RetryConfig {
+        let maxAttempts = try mapResolvableInt(dict, key: "max_attempts", nodeID: nodeID) ?? .literal(1)
+        let delaySeconds = try mapResolvableInt(dict, key: "delay_seconds", nodeID: nodeID) ?? .literal(0)
         return RetryConfig(maxAttempts: maxAttempts, delaySeconds: delaySeconds)
     }
 
@@ -467,9 +441,101 @@ struct WorkflowParser: WorkflowParsing, Sendable {
         }
     }
 
+    // MARK: - Resolvable Mapping Helpers
+
+    /// Maps a dictionary value to `Resolvable<String>`. If the value contains
+    /// `{{`, it is treated as a template expression; otherwise it is a literal.
+    private func mapResolvableString(_ dict: [String: Any], key: String) -> Resolvable<String>? {
+        guard let strVal = dict[key] as? String else { return nil }
+        if strVal.contains("{{") {
+            return .template(strVal)
+        }
+        return .literal(strVal)
+    }
+
+    /// Maps a dictionary value to `Resolvable<Int>`. Accepts an integer literal
+    /// or a string containing `{{` (template). Throws `invalidFieldType` for
+    /// non-integer, non-template values.
+    private func mapResolvableInt(
+        _ dict: [String: Any], key: String, nodeID: String
+    ) throws -> Resolvable<Int>? {
+        guard let raw = dict[key] else { return nil }
+        if let intVal = raw as? Int {
+            return .literal(intVal)
+        }
+        if let strVal = raw as? String {
+            if strVal.contains("{{") {
+                return .template(strVal)
+            }
+            // Try parsing the plain string as an integer (YAML sometimes quotes numbers).
+            if let parsed = Int(strVal) {
+                return .literal(parsed)
+            }
+            throw ParserError.invalidFieldType(
+                node: nodeID, field: key, expected: "integer or template string"
+            )
+        }
+        throw ParserError.invalidFieldType(
+            node: nodeID, field: key, expected: "integer or template string"
+        )
+    }
+
+    /// Maps a dictionary value to `Resolvable<Bool>`. Accepts a boolean literal
+    /// or a string containing `{{` (template). Throws `invalidFieldType` for
+    /// non-boolean, non-template values.
+    private func mapResolvableBool(
+        _ dict: [String: Any], key: String, nodeID: String
+    ) throws -> Resolvable<Bool>? {
+        guard let raw = dict[key] else { return nil }
+        if let boolVal = raw as? Bool {
+            return .literal(boolVal)
+        }
+        if let strVal = raw as? String {
+            if strVal.contains("{{") {
+                return .template(strVal)
+            }
+            // Try parsing common boolean strings.
+            switch strVal.lowercased() {
+            case "true": return .literal(true)
+            case "false": return .literal(false)
+            default:
+                throw ParserError.invalidFieldType(
+                    node: nodeID, field: key, expected: "boolean or template string"
+                )
+            }
+        }
+        throw ParserError.invalidFieldType(
+            node: nodeID, field: key, expected: "boolean or template string"
+        )
+    }
+
+    /// Maps a dictionary value to a `Resolvable` enum. If the string contains
+    /// `{{`, it is treated as a template. Otherwise, it must be a valid raw value
+    /// of the enum type `T`.
+    private func mapResolvableEnum<T: RawRepresentable>(
+        _ dict: [String: Any], key: String, nodeID: String, typeName: String
+    ) throws -> Resolvable<T>? where T.RawValue == String, T: Sendable & Equatable & Codable {
+        guard let raw = dict[key] else { return nil }
+        guard let strVal = raw as? String else {
+            throw ParserError.invalidFieldType(
+                node: nodeID, field: key, expected: "\(typeName) or template string"
+            )
+        }
+        if strVal.contains("{{") {
+            return .template(strVal)
+        }
+        guard let value = T(rawValue: strVal) else {
+            throw ParserError.invalidExpression(
+                node: nodeID, detail: "Invalid \(typeName) value '\(strVal)'"
+            )
+        }
+        return .literal(value)
+    }
+
     // MARK: - Template Variable Validation
 
-    /// Collects all template-bearing strings from a node (prompt, when, command, input map values).
+    /// Collects all template-bearing strings from a node (prompt, when, command, input map values,
+    /// and any Resolvable fields that contain template expressions).
     private func collectTemplateStrings(from node: Models.Node) -> [String] {
         var templates: [String] = []
         if let prompt = node.prompt { templates.append(prompt) }
@@ -477,6 +543,21 @@ struct WorkflowParser: WorkflowParsing, Sendable {
         if let command = node.command { templates.append(command) }
         if let inputs = node.inputs {
             templates.append(contentsOf: inputs.values)
+        }
+
+        // Scan Resolvable fields for template expressions.
+        if case .template(let t) = node.agent { templates.append(t) }
+        if case .template(let t) = node.timeoutSeconds { templates.append(t) }
+        if case .template(let t) = node.onFailure { templates.append(t) }
+        if case .template(let t) = node.workspaceMode { templates.append(t) }
+        if case .template(let t) = node.permissionMode { templates.append(t) }
+        if let loop = node.loop {
+            if case .template(let t) = loop.maxIterations { templates.append(t) }
+            if case .template(let t) = loop.freshContext { templates.append(t) }
+        }
+        if let retry = node.retry {
+            if case .template(let t) = retry.maxAttempts { templates.append(t) }
+            if case .template(let t) = retry.delaySeconds { templates.append(t) }
         }
         return templates
     }

@@ -817,6 +817,16 @@ private struct FakeTemplateResolver: TemplateResolving, Sendable {
     func resolve(template: String, context: TaskContext) throws -> String {
         template
     }
+
+    func resolve<T: ResolvableConvertible>(_ resolvable: Resolvable<T>, context: TaskContext) throws -> T {
+        switch resolvable {
+        case .literal(let value):
+            return value
+        case .template(let expression):
+            let resolved = try resolve(template: expression, context: context)
+            return try T.fromResolved(resolved)
+        }
+    }
 }
 
 /// A template resolver that actually substitutes {{variable}} patterns
@@ -831,5 +841,15 @@ private struct SubstitutingTemplateResolver: TemplateResolving, Sendable {
             result = result.replacingOccurrences(of: "{{\(key)}}", with: value)
         }
         return result
+    }
+
+    func resolve<T: ResolvableConvertible>(_ resolvable: Resolvable<T>, context: TaskContext) throws -> T {
+        switch resolvable {
+        case .literal(let value):
+            return value
+        case .template(let expression):
+            let resolved = try resolve(template: expression, context: context)
+            return try T.fromResolved(resolved)
+        }
     }
 }
