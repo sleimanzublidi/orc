@@ -13,6 +13,10 @@ public enum TemplateError: Error, Sendable, Equatable {
 
     /// A `when:` expression could not be evaluated to a boolean result.
     case expressionEvaluation(detail: String)
+
+    /// A resolved template string could not be converted to the target type
+    /// (e.g., `"abc"` cannot become an `Int`).
+    case invalidConversion(value: String, targetType: String)
 }
 
 extension TemplateError: CustomStringConvertible {
@@ -26,6 +30,8 @@ extension TemplateError: CustomStringConvertible {
             return "Expression syntax error: \(detail)"
         case .expressionEvaluation(let detail):
             return "Expression evaluation error: \(detail)"
+        case .invalidConversion(let value, let targetType):
+            return "Cannot convert '\(value)' to \(targetType)."
         }
     }
 }

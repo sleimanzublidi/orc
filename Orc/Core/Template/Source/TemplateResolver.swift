@@ -57,6 +57,18 @@ struct TemplateResolver: TemplateResolving, Sendable {
         return result
     }
 
+    // MARK: - Resolvable
+
+    func resolve<T: ResolvableConvertible>(_ resolvable: Resolvable<T>, context: TaskContext) throws -> T {
+        switch resolvable {
+        case .literal(let value):
+            return value
+        case .template(let expression):
+            let resolved = try resolve(template: expression, context: context)
+            return try T.fromResolved(resolved)
+        }
+    }
+
     // MARK: - Private Helpers
 
     /// Scans forward from `start` looking for `}}`. Returns the index of the first `}` in `}}`.

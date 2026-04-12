@@ -272,7 +272,7 @@ struct WorkflowTests {
                 WorkflowInput(name: "dryRun", type: "bool", required: false),
             ],
             nodes: [
-                Node(id: "build", agent: "claude", prompt: "Build the project"),
+                Node(id: "build", agent: .literal("claude"), prompt: "Build the project"),
                 Node(id: "test", command: "swift test", dependsOn: ["build"]),
             ],
             output: ["result": "{{build.output}}"],
@@ -331,20 +331,20 @@ struct NodeTests {
     func fullRoundTrip() throws {
         let node = Node(
             id: "analyze",
-            agent: "claude",
+            agent: .literal("claude"),
             prompt: "Analyze code",
             command: nil,
             dependsOn: ["build"],
             output: "analysis",
             when: "build.status == 'completed'",
-            loop: LoopConfig(until: "tests_pass", maxIterations: 5, freshContext: true),
+            loop: LoopConfig(until: "tests_pass", maxIterations: .literal(5), freshContext: .literal(true)),
             interactive: .prompt(message: "Review?"),
-            retry: RetryConfig(maxAttempts: 3, delaySeconds: 10),
-            timeoutSeconds: 300,
-            onFailure: .skip,
+            retry: RetryConfig(maxAttempts: .literal(3), delaySeconds: .literal(10)),
+            timeoutSeconds: .literal(300),
+            onFailure: .literal(.skip),
             workflow: nil,
             inputs: ["file": "main.swift"],
-            workspaceMode: .isolated
+            workspaceMode: .literal(.isolated)
         )
         let decoded = try roundTrip(node)
         #expect(decoded == node)
@@ -357,10 +357,10 @@ struct NodeTests {
         #expect(decoded == node)
     }
 
-    @Test("default onFailure is .stop")
+    @Test("default onFailure is .literal(.stop)")
     func defaultOnFailure() {
         let node = Node(id: "x")
-        #expect(node.onFailure == .stop)
+        #expect(node.onFailure == .literal(.stop))
     }
 }
 
@@ -371,7 +371,7 @@ struct LoopConfigTests {
 
     @Test("round-trip encoding/decoding")
     func roundTrips() throws {
-        let config = LoopConfig(until: "done", maxIterations: 20, freshContext: true)
+        let config = LoopConfig(until: "done", maxIterations: .literal(20), freshContext: .literal(true))
         let decoded = try roundTrip(config)
         #expect(decoded == config)
     }
@@ -379,8 +379,8 @@ struct LoopConfigTests {
     @Test("default values")
     func defaults() {
         let config = LoopConfig(until: "condition")
-        #expect(config.maxIterations == 10)
-        #expect(config.freshContext == false)
+        #expect(config.maxIterations == .literal(10))
+        #expect(config.freshContext == .literal(false))
     }
 }
 
@@ -391,7 +391,7 @@ struct RetryConfigTests {
 
     @Test("round-trip encoding/decoding")
     func roundTrips() throws {
-        let config = RetryConfig(maxAttempts: 5, delaySeconds: 30)
+        let config = RetryConfig(maxAttempts: .literal(5), delaySeconds: .literal(30))
         let decoded = try roundTrip(config)
         #expect(decoded == config)
     }
@@ -399,8 +399,8 @@ struct RetryConfigTests {
     @Test("default values")
     func defaults() {
         let config = RetryConfig()
-        #expect(config.maxAttempts == 1)
-        #expect(config.delaySeconds == 0)
+        #expect(config.maxAttempts == .literal(1))
+        #expect(config.delaySeconds == .literal(0))
     }
 }
 

@@ -34,14 +34,24 @@ public struct WorkflowInput: Sendable, Equatable, Codable {
     public let name: String
     public let type: String
     public let required: Bool
+    public let defaultValue: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case name
+        case type
+        case required
+        case defaultValue = "default"
+    }
 
     public init(
         name: String,
         type: String = "string",
-        required: Bool = true
+        required: Bool = true,
+        defaultValue: String? = nil
     ) {
         self.name = name
         self.type = type
         self.required = required
+        self.defaultValue = defaultValue
     }
 }

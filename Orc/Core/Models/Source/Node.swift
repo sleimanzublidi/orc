@@ -2,9 +2,12 @@
 
 /// A single step in a workflow DAG. Represents either an agent invocation,
 /// a shell command, or a sub-workflow reference.
+///
+/// Several configuration fields use `Resolvable<T>` to support both static
+/// literals and `{{…}}` template expressions that are resolved at runtime.
 public struct Node: Sendable, Equatable, Codable {
     public let id: String
-    public let agent: String?
+    public let agent: Resolvable<String>?
     public let prompt: String?
     public let command: String?
     public let dependsOn: [String]
@@ -13,16 +16,16 @@ public struct Node: Sendable, Equatable, Codable {
     public let loop: LoopConfig?
     public let interactive: InteractiveMode?
     public let retry: RetryConfig?
-    public let timeoutSeconds: Int?
-    public let onFailure: FailureStrategy
+    public let timeoutSeconds: Resolvable<Int>?
+    public let onFailure: Resolvable<FailureStrategy>
     public let workflow: String?
     public let inputs: [String: String]?
-    public let workspaceMode: WorkspaceMode?
-    public let permissionMode: PermissionMode?
+    public let workspaceMode: Resolvable<WorkspaceMode>?
+    public let permissionMode: Resolvable<PermissionMode>?
 
     public init(
         id: String,
-        agent: String? = nil,
+        agent: Resolvable<String>? = nil,
         prompt: String? = nil,
         command: String? = nil,
         dependsOn: [String] = [],
@@ -31,12 +34,12 @@ public struct Node: Sendable, Equatable, Codable {
         loop: LoopConfig? = nil,
         interactive: InteractiveMode? = nil,
         retry: RetryConfig? = nil,
-        timeoutSeconds: Int? = nil,
-        onFailure: FailureStrategy = .stop,
+        timeoutSeconds: Resolvable<Int>? = nil,
+        onFailure: Resolvable<FailureStrategy> = .literal(.stop),
         workflow: String? = nil,
         inputs: [String: String]? = nil,
-        workspaceMode: WorkspaceMode? = nil,
-        permissionMode: PermissionMode? = nil
+        workspaceMode: Resolvable<WorkspaceMode>? = nil,
+        permissionMode: Resolvable<PermissionMode>? = nil
     ) {
         self.id = id
         self.agent = agent
@@ -109,13 +112,13 @@ extension InteractiveMode: Codable {
 /// Configuration for nodes that repeat until a condition is met.
 public struct LoopConfig: Sendable, Equatable, Codable {
     public let until: String
-    public let maxIterations: Int
-    public let freshContext: Bool
+    public let maxIterations: Resolvable<Int>
+    public let freshContext: Resolvable<Bool>
 
     public init(
         until: String,
-        maxIterations: Int = 10,
-        freshContext: Bool = false
+        maxIterations: Resolvable<Int> = .literal(10),
+        freshContext: Resolvable<Bool> = .literal(false)
     ) {
         self.until = until
         self.maxIterations = maxIterations
@@ -127,12 +130,12 @@ public struct LoopConfig: Sendable, Equatable, Codable {
 
 /// Configuration for automatic retry on node failure.
 public struct RetryConfig: Sendable, Equatable, Codable {
-    public let maxAttempts: Int
-    public let delaySeconds: Int
+    public let maxAttempts: Resolvable<Int>
+    public let delaySeconds: Resolvable<Int>
 
     public init(
-        maxAttempts: Int = 1,
-        delaySeconds: Int = 0
+        maxAttempts: Resolvable<Int> = .literal(1),
+        delaySeconds: Resolvable<Int> = .literal(0)
     ) {
         self.maxAttempts = maxAttempts
         self.delaySeconds = delaySeconds

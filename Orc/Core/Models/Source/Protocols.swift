@@ -47,6 +47,13 @@ public protocol WorkflowStoring: Sendable {
 /// Resolves `{{variable}}` placeholders in prompt strings using the current task context.
 public protocol TemplateResolving: Sendable {
     func resolve(template: String, context: TaskContext) throws -> String
+
+    /// Resolves a `Resolvable<T>` value against the given context.
+    ///
+    /// For `.literal` values, returns the value directly. For `.template`
+    /// expressions, resolves the template string and converts the result
+    /// to `T` via `ResolvableConvertible.fromResolved(_:)`.
+    func resolve<T: ResolvableConvertible>(_ resolvable: Resolvable<T>, context: TaskContext) throws -> T
 }
 
 // MARK: - ExpressionEvaluating
