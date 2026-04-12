@@ -277,7 +277,8 @@ public actor WorkflowEngine {
             store: store,
             evaluatorRunner: evaluatorRunner,
             templateResolver: templateResolver,
-            tmux: tmuxSession
+            tmux: tmuxSession,
+            onEvent: { _ in }
         )
 
         // Derive repository root from the .orc base path (its parent directory).
@@ -301,7 +302,8 @@ public actor WorkflowEngine {
             loopHandler: loopHandler,
             maxParallelNodes: parallelLimit,
             repoRoot: repoRoot,
-            environment: environment
+            environment: environment,
+            onEvent: { _ in }
         )
 
         let startTime = Date()
@@ -386,7 +388,8 @@ public actor WorkflowEngine {
             store: store,
             evaluatorRunner: evaluatorRunner,
             templateResolver: templateResolver,
-            tmux: tmuxSession
+            tmux: tmuxSession,
+            onEvent: { _ in }
         )
 
         let repoRoot = workspaceManager.basePath.deletingLastPathComponent
@@ -405,7 +408,8 @@ public actor WorkflowEngine {
             loopHandler: loopHandler,
             maxParallelNodes: config.maxParallelNodes,
             repoRoot: repoRoot,
-            environment: environment
+            environment: environment,
+            onEvent: { _ in }
         )
 
         let startTime = Date()

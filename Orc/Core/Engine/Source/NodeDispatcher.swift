@@ -21,8 +21,39 @@ struct NodeDispatcher: Sendable {
     let maxParallelNodes: Int
     let repoRoot: String
     let environment: [String: String]
+    let onEvent: @Sendable (WorkflowEvent) -> Void
 
     private let logger = Logger(label: "orc.engine.dispatcher")
+
+    init(
+        plan: ExecutionPlan,
+        providers: ProviderRegistry,
+        store: any WorkflowStoring,
+        parser: any WorkflowParsing,
+        templateResolver: any TemplateResolving,
+        expressionEvaluator: any ExpressionEvaluating,
+        evaluatorRunner: EvaluatorRunner,
+        interactiveHandler: InteractiveHandler,
+        loopHandler: LoopHandler,
+        maxParallelNodes: Int,
+        repoRoot: String,
+        environment: [String: String],
+        onEvent: @escaping @Sendable (WorkflowEvent) -> Void = { _ in }
+    ) {
+        self.plan = plan
+        self.providers = providers
+        self.store = store
+        self.parser = parser
+        self.templateResolver = templateResolver
+        self.expressionEvaluator = expressionEvaluator
+        self.evaluatorRunner = evaluatorRunner
+        self.interactiveHandler = interactiveHandler
+        self.loopHandler = loopHandler
+        self.maxParallelNodes = maxParallelNodes
+        self.repoRoot = repoRoot
+        self.environment = environment
+        self.onEvent = onEvent
+    }
 
     /// Executes the workflow DAG, dispatching nodes in dependency order.
     ///
@@ -213,6 +244,7 @@ struct NodeDispatcher: Sendable {
                         // Skip dependents: mark all downstream nodes as skipped.
                         skipDependents(
                             of: nodeID,
+                            run: run,
                             pendingNodes: &pendingNodes,
                             nodeStatuses: &nodeStatuses,
                             resolvedOnFailure: resolvedOnFailure
@@ -226,6 +258,7 @@ struct NodeDispatcher: Sendable {
                     // Propagate skip to dependents if all their deps are skipped.
                     cascadeSkips(
                         from: nodeID,
+                        run: run,
                         pendingNodes: &pendingNodes,
                         nodeStatuses: &nodeStatuses
                     )
@@ -322,6 +355,7 @@ struct NodeDispatcher: Sendable {
                     )
                     _ = try await store.createNodeExecution(exec)
                     logger.info("[\(nodeID)] skipped (when: condition false)")
+                    onEvent(.nodeSkipped(nodeID: nodeID, runID: run.id))
                     // Use literalValue fallback since config hasn't been resolved yet.
                     return (nodeID, .skipped, nil, nil, node.onFailure.literalValue ?? .stop)
                 }
@@ -458,6 +492,9 @@ struct NodeDispatcher: Sendable {
             logger.warning("[\(node.id)] Failed to persist running execution: \(error)")
         }
 
+        // Emit nodeStarted before entering the retry loop.
+        onEvent(.nodeStarted(nodeID: node.id, runID: run.id, agent: agentName))
+
         // Execute with retry support using resolved config values.
         let maxAttempts = config.retry?.maxAttempts ?? 1
         var lastError: (any Error)?
@@ -468,11 +505,26 @@ struct NodeDispatcher: Sendable {
             }
             do {
                 let provider = try providers.provider(named: agentName)
-                let output = try await provider.execute(
+
+                let stream = provider.executeStreaming(
                     prompt: resolvedPrompt, context: context,
                     timeout: config.timeoutSeconds,
                     parameters: config.parameters
                 )
+
+                var finalOutput: TaskOutput?
+                for try await event in stream {
+                    switch event {
+                    case .output(let chunk, let streamType):
+                        onEvent(.nodeOutput(nodeID: node.id, runID: run.id, chunk: chunk, stream: streamType))
+                    case .completed(let output):
+                        finalOutput = output
+                    }
+                }
+
+                guard let output = finalOutput else {
+                    throw EngineError.nodeExecutionFailed(nodeID: node.id, detail: "No output received from provider")
+                }
 
                 try await store.updateNodeExecution(
                     id: execID,
@@ -481,6 +533,7 @@ struct NodeDispatcher: Sendable {
                     error: nil
                 )
 
+                onEvent(.nodeCompleted(nodeID: node.id, runID: run.id, output: output.output))
                 return (node.id, .completed, output.output, nil)
             } catch {
                 lastError = error
@@ -494,6 +547,8 @@ struct NodeDispatcher: Sendable {
         }
 
         // All attempts exhausted.
+        onEvent(.nodeFailed(nodeID: node.id, runID: run.id, error: lastError?.localizedDescription ?? "unknown"))
+
         do {
             try await store.updateNodeExecution(
                 id: execID,
@@ -885,7 +940,8 @@ struct NodeDispatcher: Sendable {
             loopHandler: loopHandler,
             maxParallelNodes: maxParallelNodes,
             repoRoot: repoRoot,
-            environment: environment
+            environment: environment,
+            onEvent: onEvent
         )
 
         // 7. Execute the child workflow.
@@ -1104,6 +1160,7 @@ struct NodeDispatcher: Sendable {
     /// dependencies.
     private func skipDependents(
         of nodeID: String,
+        run: Run,
         pendingNodes: inout Set<String>,
         nodeStatuses: inout [String: NodeStatus],
         resolvedOnFailure: [String: FailureStrategy]
@@ -1133,10 +1190,11 @@ struct NodeDispatcher: Sendable {
             if allDepsUnsatisfied {
                 nodeStatuses[depID] = .skipped
                 pendingNodes.remove(depID)
+                onEvent(.nodeSkipped(nodeID: depID, runID: run.id))
 
                 // Recursively check transitive dependents.
                 skipDependents(
-                    of: depID, pendingNodes: &pendingNodes,
+                    of: depID, run: run, pendingNodes: &pendingNodes,
                     nodeStatuses: &nodeStatuses, resolvedOnFailure: resolvedOnFailure
                 )
             }
@@ -1147,6 +1205,7 @@ struct NodeDispatcher: Sendable {
     /// the dependent is also skipped.
     private func cascadeSkips(
         from nodeID: String,
+        run: Run,
         pendingNodes: inout Set<String>,
         nodeStatuses: inout [String: NodeStatus]
     ) {
@@ -1163,9 +1222,10 @@ struct NodeDispatcher: Sendable {
             if allDepsSkipped {
                 nodeStatuses[depID] = .skipped
                 pendingNodes.remove(depID)
+                onEvent(.nodeSkipped(nodeID: depID, runID: run.id))
 
                 // Recursively cascade.
-                cascadeSkips(from: depID, pendingNodes: &pendingNodes, nodeStatuses: &nodeStatuses)
+                cascadeSkips(from: depID, run: run, pendingNodes: &pendingNodes, nodeStatuses: &nodeStatuses)
             }
         }
     }

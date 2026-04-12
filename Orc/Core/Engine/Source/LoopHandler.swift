@@ -15,8 +15,25 @@ struct LoopHandler: Sendable {
     let evaluatorRunner: EvaluatorRunner
     let templateResolver: any TemplateResolving
     let tmux: any TmuxProviding
+    let onEvent: @Sendable (WorkflowEvent) -> Void
 
     private let logger = Logger(label: "orc.engine.loop")
+
+    init(
+        providers: ProviderRegistry,
+        store: any WorkflowStoring,
+        evaluatorRunner: EvaluatorRunner,
+        templateResolver: any TemplateResolving,
+        tmux: any TmuxProviding,
+        onEvent: @escaping @Sendable (WorkflowEvent) -> Void = { _ in }
+    ) {
+        self.providers = providers
+        self.store = store
+        self.evaluatorRunner = evaluatorRunner
+        self.templateResolver = templateResolver
+        self.tmux = tmux
+        self.onEvent = onEvent
+    }
 
     /// Executes a loop node, iterating until the evaluator returns true or max_iterations is hit.
     ///
@@ -250,11 +267,26 @@ struct LoopHandler: Sendable {
                     )
                 }
 
-                // Standard (non-interactive) execution.
-                return try await provider.execute(
+                // Standard (non-interactive) execution via streaming.
+                let stream = provider.executeStreaming(
                     prompt: resolvedPrompt, context: context,
                     timeout: timeoutSeconds, parameters: parameters
                 )
+
+                var finalOutput: TaskOutput?
+                for try await event in stream {
+                    switch event {
+                    case .output(let chunk, let streamType):
+                        onEvent(.nodeOutput(nodeID: node.id, runID: run.id, chunk: chunk, stream: streamType))
+                    case .completed(let output):
+                        finalOutput = output
+                    }
+                }
+
+                guard let output = finalOutput else {
+                    throw EngineError.nodeExecutionFailed(nodeID: node.id, detail: "No output received from provider")
+                }
+                return output
             } catch {
                 lastError = error
                 if attempt < maxAttempts {

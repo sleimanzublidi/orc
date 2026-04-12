@@ -52,6 +52,9 @@ public enum EngineError: Error, Sendable, Equatable {
     /// A node config field resolved to an invalid value.
     case invalidConfigValue(node: String, field: String, value: String, expected: String)
 
+    /// A node's streaming execution completed without producing output.
+    case nodeExecutionFailed(nodeID: String, detail: String)
+
 }
 
 extension EngineError: CustomStringConvertible {
@@ -87,6 +90,8 @@ extension EngineError: CustomStringConvertible {
             "Missing required input '\(name)' for workflow '\(workflow)'."
         case .invalidConfigValue(let node, let field, let value, let expected):
             "[\(node)] Config field '\(field)' resolved to '\(value)'; expected \(expected)."
+        case .nodeExecutionFailed(let nodeID, let detail):
+            "Node '\(nodeID)' execution failed: \(detail)"
         }
     }
 }
