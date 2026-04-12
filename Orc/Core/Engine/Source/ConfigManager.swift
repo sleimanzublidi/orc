@@ -23,7 +23,7 @@ public struct ConfigManager: Sendable {
     ///
     /// - Returns: A fully populated `OrcConfig`.
     public func loadConfig() throws -> OrcConfig {
-        let configPath = (basePath as NSString).appendingPathComponent("config.yml")
+        let configPath = basePath.appendingPathComponent("config.yml")
         let fm = FileManager.default
 
         guard fm.fileExists(atPath: configPath),
@@ -56,7 +56,7 @@ public struct ConfigManager: Sendable {
     ///   - key: The dot-notation key.
     ///   - value: The value to set.
     func setValue(key: String, value: String) throws {
-        let configPath = (basePath as NSString).appendingPathComponent("config.yml")
+        let configPath = basePath.appendingPathComponent("config.yml")
 
         // Load existing YAML as a nested dictionary, or start empty.
         var dict = loadYAMLDictionary(at: configPath)
@@ -98,7 +98,7 @@ public struct ConfigManager: Sendable {
     ///
     /// - Parameter key: The dot-notation key to remove.
     func unsetValue(key: String) throws {
-        let configPath = (basePath as NSString).appendingPathComponent("config.yml")
+        let configPath = basePath.appendingPathComponent("config.yml")
         var dict = loadYAMLDictionary(at: configPath)
 
         let components = key.split(separator: ".").map(String.init)

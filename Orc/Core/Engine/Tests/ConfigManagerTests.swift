@@ -16,7 +16,7 @@ struct ConfigManagerTests {
         try FileManager.default.createDirectory(atPath: tmpDir, withIntermediateDirectories: true)
 
         if let yaml = configYAML {
-            let configPath = (tmpDir as NSString).appendingPathComponent("config.yml")
+            let configPath = tmpDir.appendingPathComponent("config.yml")
             try yaml.write(toFile: configPath, atomically: true, encoding: .utf8)
         }
 

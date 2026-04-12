@@ -43,7 +43,7 @@ public actor WorkflowEngine {
     ///
     /// - Parameter basePath: The path to the `.orc` directory.
     public init(basePath: String) async throws {
-        let dbPath = (basePath as NSString).appendingPathComponent("orc.db")
+        let dbPath = basePath.appendingPathComponent("orc.db")
         let fm = FileManager.default
 
         // Ensure .orc directory exists.
@@ -162,7 +162,7 @@ public actor WorkflowEngine {
     ///   or file-system / database errors.
     public static func initializeProject(at path: String) async throws {
         let fm = FileManager.default
-        let orcDir = (path as NSString).appendingPathComponent(".orc")
+        let orcDir = path.appendingPathComponent(".orc")
 
         if fm.fileExists(atPath: orcDir) {
             throw EngineError.projectAlreadyExists(path: orcDir)
@@ -170,11 +170,11 @@ public actor WorkflowEngine {
         try fm.createDirectory(atPath: orcDir, withIntermediateDirectories: true)
 
         for subdir in ["evaluators", "workflows"] {
-            let dir = (orcDir as NSString).appendingPathComponent(subdir)
+            let dir = orcDir.appendingPathComponent(subdir)
             try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
         }
 
-        let dbPath = (orcDir as NSString).appendingPathComponent("orc.db")
+        let dbPath = orcDir.appendingPathComponent("orc.db")
         _ = try StoreFactory.makeStore(path: dbPath)
     }
 
@@ -281,7 +281,7 @@ public actor WorkflowEngine {
         )
 
         // Derive repository root from the .orc base path (its parent directory).
-        let repoRoot = (workspaceManager.basePath as NSString).deletingLastPathComponent
+        let repoRoot = workspaceManager.basePath.deletingLastPathComponent
 
         // Load .env from the .orc directory. Values merge with (but do not
         // override) the current process environment so explicit env vars win.
@@ -389,7 +389,7 @@ public actor WorkflowEngine {
             tmux: tmuxSession
         )
 
-        let repoRoot = (workspaceManager.basePath as NSString).deletingLastPathComponent
+        let repoRoot = workspaceManager.basePath.deletingLastPathComponent
         let dotEnv = DotEnvLoader.load(from: workspaceManager.basePath + "/.env")
         let environment = ProcessInfo.processInfo.environment.merging(dotEnv) { existing, _ in existing }
 
@@ -541,7 +541,7 @@ public actor WorkflowEngine {
     /// Scans a subdirectory of `.orc/` for YAML files, extracting name and
     /// description from each file's top-level keys.
     private nonisolated func scanDirectory(name: String) -> [CatalogEntry] {
-        let dirPath = (basePath as NSString).appendingPathComponent(name)
+        let dirPath = basePath.appendingPathComponent(name)
         let fm = FileManager.default
 
         guard fm.fileExists(atPath: dirPath),
@@ -552,7 +552,7 @@ public actor WorkflowEngine {
         let yamlFiles = contents.filter { $0.hasSuffix(".yml") || $0.hasSuffix(".yaml") }.sorted()
 
         return yamlFiles.map { fileName in
-            let filePath = (dirPath as NSString).appendingPathComponent(fileName)
+            let filePath = dirPath.appendingPathComponent(fileName)
             guard let data = fm.contents(atPath: filePath),
                   let yaml = String(data: data, encoding: .utf8),
                   let parsed = try? Yams.load(yaml: yaml) as? [String: Any] else {

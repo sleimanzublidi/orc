@@ -113,8 +113,8 @@ struct EvaluatorRunner: EvaluatorProviding, Sendable {
     /// - Throws: `EngineError.evaluatorNotFound` if the file does not exist,
     ///   or `EngineError.evaluatorFailed` if the YAML is malformed.
     func loadEvaluatorDefinition(name: String) throws -> EvaluatorDefinition {
-        let evaluatorsDir = (basePath as NSString).appendingPathComponent("evaluators")
-        let filePath = (evaluatorsDir as NSString).appendingPathComponent("\(name).yml")
+        let evaluatorsDir = basePath.appendingPathComponent("evaluators")
+        let filePath = evaluatorsDir.appendingPathComponent("\(name).yml")
 
         guard FileManager.default.fileExists(atPath: filePath) else {
             throw EngineError.evaluatorNotFound(name: name)

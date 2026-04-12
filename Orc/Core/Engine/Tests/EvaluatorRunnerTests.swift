@@ -291,7 +291,7 @@ struct EvaluatorRunnerTests {
     func aiEvaluatorReturnsTrue() async throws {
         // Set up a temp directory with an evaluator YAML file.
         let tempDir = NSTemporaryDirectory() + "orc-test-\(UUID().uuidString)"
-        let evaluatorsDir = (tempDir as NSString).appendingPathComponent("evaluators")
+        let evaluatorsDir = tempDir.appendingPathComponent("evaluators")
         try FileManager.default.createDirectory(atPath: evaluatorsDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
@@ -301,7 +301,7 @@ struct EvaluatorRunnerTests {
         agent: fake
         prompt: "Is this done? {{last_output}}"
         """
-        let yamlPath = (evaluatorsDir as NSString).appendingPathComponent("check_complete.yml")
+        let yamlPath = evaluatorsDir.appendingPathComponent("check_complete.yml")
         try yaml.write(toFile: yamlPath, atomically: true, encoding: .utf8)
 
         // The fake provider returns "YES" for any prompt.
@@ -333,7 +333,7 @@ struct EvaluatorRunnerTests {
     @Test("AI evaluator returns false for 'NO' response")
     func aiEvaluatorReturnsFalse() async throws {
         let tempDir = NSTemporaryDirectory() + "orc-test-\(UUID().uuidString)"
-        let evaluatorsDir = (tempDir as NSString).appendingPathComponent("evaluators")
+        let evaluatorsDir = tempDir.appendingPathComponent("evaluators")
         try FileManager.default.createDirectory(atPath: evaluatorsDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
@@ -343,7 +343,7 @@ struct EvaluatorRunnerTests {
         agent: fake
         prompt: "Is this done? {{last_output}}"
         """
-        let yamlPath = (evaluatorsDir as NSString).appendingPathComponent("check_complete.yml")
+        let yamlPath = evaluatorsDir.appendingPathComponent("check_complete.yml")
         try yaml.write(toFile: yamlPath, atomically: true, encoding: .utf8)
 
         let fakeProvider = FakeAgentProvider(name: "fake")
@@ -369,7 +369,7 @@ struct EvaluatorRunnerTests {
     @Test("AI evaluator throws when agent is missing from registry")
     func aiEvaluatorMissingAgent() async throws {
         let tempDir = NSTemporaryDirectory() + "orc-test-\(UUID().uuidString)"
-        let evaluatorsDir = (tempDir as NSString).appendingPathComponent("evaluators")
+        let evaluatorsDir = tempDir.appendingPathComponent("evaluators")
         try FileManager.default.createDirectory(atPath: evaluatorsDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
@@ -379,7 +379,7 @@ struct EvaluatorRunnerTests {
         agent: nonexistent-agent
         prompt: "Is this done?"
         """
-        let yamlPath = (evaluatorsDir as NSString).appendingPathComponent("check_complete.yml")
+        let yamlPath = evaluatorsDir.appendingPathComponent("check_complete.yml")
         try yaml.write(toFile: yamlPath, atomically: true, encoding: .utf8)
 
         // Registry has no provider named "nonexistent-agent".
@@ -399,7 +399,7 @@ struct EvaluatorRunnerTests {
     @Test("Script evaluator returns true for exit code 0")
     func scriptEvaluatorExitZero() async throws {
         let tempDir = NSTemporaryDirectory() + "orc-test-\(UUID().uuidString)"
-        let evaluatorsDir = (tempDir as NSString).appendingPathComponent("evaluators")
+        let evaluatorsDir = tempDir.appendingPathComponent("evaluators")
         try FileManager.default.createDirectory(atPath: evaluatorsDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
@@ -408,7 +408,7 @@ struct EvaluatorRunnerTests {
         type: script
         command: "swift test"
         """
-        let yamlPath = (evaluatorsDir as NSString).appendingPathComponent("tests_pass.yml")
+        let yamlPath = evaluatorsDir.appendingPathComponent("tests_pass.yml")
         try yaml.write(toFile: yamlPath, atomically: true, encoding: .utf8)
 
         let fakeProcess = FakeProcessRunner(exitCode: 0)
@@ -428,7 +428,7 @@ struct EvaluatorRunnerTests {
     @Test("Script evaluator returns false for non-zero exit code")
     func scriptEvaluatorExitNonZero() async throws {
         let tempDir = NSTemporaryDirectory() + "orc-test-\(UUID().uuidString)"
-        let evaluatorsDir = (tempDir as NSString).appendingPathComponent("evaluators")
+        let evaluatorsDir = tempDir.appendingPathComponent("evaluators")
         try FileManager.default.createDirectory(atPath: evaluatorsDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
@@ -437,7 +437,7 @@ struct EvaluatorRunnerTests {
         type: script
         command: "swift test"
         """
-        let yamlPath = (evaluatorsDir as NSString).appendingPathComponent("tests_pass.yml")
+        let yamlPath = evaluatorsDir.appendingPathComponent("tests_pass.yml")
         try yaml.write(toFile: yamlPath, atomically: true, encoding: .utf8)
 
         let fakeProcess = FakeProcessRunner(exitCode: 1)
@@ -455,7 +455,7 @@ struct EvaluatorRunnerTests {
     @Test("Script evaluator passes ORC_LAST_OUTPUT environment variable")
     func scriptEvaluatorPassesEnvVar() async throws {
         let tempDir = NSTemporaryDirectory() + "orc-test-\(UUID().uuidString)"
-        let evaluatorsDir = (tempDir as NSString).appendingPathComponent("evaluators")
+        let evaluatorsDir = tempDir.appendingPathComponent("evaluators")
         try FileManager.default.createDirectory(atPath: evaluatorsDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
@@ -464,7 +464,7 @@ struct EvaluatorRunnerTests {
         type: script
         command: "echo check"
         """
-        let yamlPath = (evaluatorsDir as NSString).appendingPathComponent("check_env.yml")
+        let yamlPath = evaluatorsDir.appendingPathComponent("check_env.yml")
         try yaml.write(toFile: yamlPath, atomically: true, encoding: .utf8)
 
         let fakeProcess = FakeProcessRunner(exitCode: 0)
@@ -483,7 +483,7 @@ struct EvaluatorRunnerTests {
     @Test("Script evaluator resolves template variables in command")
     func scriptEvaluatorResolvesTemplates() async throws {
         let tempDir = NSTemporaryDirectory() + "orc-test-\(UUID().uuidString)"
-        let evaluatorsDir = (tempDir as NSString).appendingPathComponent("evaluators")
+        let evaluatorsDir = tempDir.appendingPathComponent("evaluators")
         try FileManager.default.createDirectory(atPath: evaluatorsDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
@@ -492,7 +492,7 @@ struct EvaluatorRunnerTests {
         type: script
         command: "cd {{workspace}} && swift test"
         """
-        let yamlPath = (evaluatorsDir as NSString).appendingPathComponent("check_workspace.yml")
+        let yamlPath = evaluatorsDir.appendingPathComponent("check_workspace.yml")
         try yaml.write(toFile: yamlPath, atomically: true, encoding: .utf8)
 
         let fakeProcess = FakeProcessRunner(exitCode: 0)
@@ -519,7 +519,7 @@ struct EvaluatorRunnerTests {
     @Test("Workflow evaluator returns true when child workflow outputs 'true'")
     func workflowEvaluatorReturnsTrue() async throws {
         let tempDir = NSTemporaryDirectory() + "orc-test-\(UUID().uuidString)"
-        let evaluatorsDir = (tempDir as NSString).appendingPathComponent("evaluators")
+        let evaluatorsDir = tempDir.appendingPathComponent("evaluators")
         try FileManager.default.createDirectory(atPath: evaluatorsDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
@@ -528,7 +528,7 @@ struct EvaluatorRunnerTests {
         type: workflow
         command: "check.yml"
         """
-        let yamlPath = (evaluatorsDir as NSString).appendingPathComponent("nested_workflow.yml")
+        let yamlPath = evaluatorsDir.appendingPathComponent("nested_workflow.yml")
         try yaml.write(toFile: yamlPath, atomically: true, encoding: .utf8)
 
         // Fake process runner that writes "true" to the stdout file and exits 0.
@@ -564,7 +564,7 @@ struct EvaluatorRunnerTests {
     @Test("Workflow evaluator returns false when child workflow outputs 'false'")
     func workflowEvaluatorReturnsFalse() async throws {
         let tempDir = NSTemporaryDirectory() + "orc-test-\(UUID().uuidString)"
-        let evaluatorsDir = (tempDir as NSString).appendingPathComponent("evaluators")
+        let evaluatorsDir = tempDir.appendingPathComponent("evaluators")
         try FileManager.default.createDirectory(atPath: evaluatorsDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
@@ -573,7 +573,7 @@ struct EvaluatorRunnerTests {
         type: workflow
         command: "check.yml"
         """
-        let yamlPath = (evaluatorsDir as NSString).appendingPathComponent("nested_workflow.yml")
+        let yamlPath = evaluatorsDir.appendingPathComponent("nested_workflow.yml")
         try yaml.write(toFile: yamlPath, atomically: true, encoding: .utf8)
 
         let fakeProcess = FakeProcessRunner(handler: { command, _, _, stdoutPath, stderrPath in
@@ -600,7 +600,7 @@ struct EvaluatorRunnerTests {
     @Test("Workflow evaluator passes last_output as input to child workflow")
     func workflowEvaluatorPassesLastOutput() async throws {
         let tempDir = NSTemporaryDirectory() + "orc-test-\(UUID().uuidString)"
-        let evaluatorsDir = (tempDir as NSString).appendingPathComponent("evaluators")
+        let evaluatorsDir = tempDir.appendingPathComponent("evaluators")
         try FileManager.default.createDirectory(atPath: evaluatorsDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
@@ -609,7 +609,7 @@ struct EvaluatorRunnerTests {
         type: workflow
         command: "check.yml"
         """
-        let yamlPath = (evaluatorsDir as NSString).appendingPathComponent("nested_workflow.yml")
+        let yamlPath = evaluatorsDir.appendingPathComponent("nested_workflow.yml")
         try yaml.write(toFile: yamlPath, atomically: true, encoding: .utf8)
 
         let fakeProcess = FakeProcessRunner(handler: { command, _, _, stdoutPath, stderrPath in
@@ -642,7 +642,7 @@ struct EvaluatorRunnerTests {
     @Test("Workflow evaluator throws evaluatorFailed when child process exits non-zero")
     func workflowEvaluatorFailsOnNonZeroExit() async throws {
         let tempDir = NSTemporaryDirectory() + "orc-test-\(UUID().uuidString)"
-        let evaluatorsDir = (tempDir as NSString).appendingPathComponent("evaluators")
+        let evaluatorsDir = tempDir.appendingPathComponent("evaluators")
         try FileManager.default.createDirectory(atPath: evaluatorsDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
@@ -651,7 +651,7 @@ struct EvaluatorRunnerTests {
         type: workflow
         command: "broken.yml"
         """
-        let yamlPath = (evaluatorsDir as NSString).appendingPathComponent("nested_workflow.yml")
+        let yamlPath = evaluatorsDir.appendingPathComponent("nested_workflow.yml")
         try yaml.write(toFile: yamlPath, atomically: true, encoding: .utf8)
 
         let fakeProcess = FakeProcessRunner(exitCode: 1)
@@ -669,7 +669,7 @@ struct EvaluatorRunnerTests {
     @Test("Workflow evaluator throws evaluatorFailed when command field is missing")
     func workflowEvaluatorMissingCommand() async throws {
         let tempDir = NSTemporaryDirectory() + "orc-test-\(UUID().uuidString)"
-        let evaluatorsDir = (tempDir as NSString).appendingPathComponent("evaluators")
+        let evaluatorsDir = tempDir.appendingPathComponent("evaluators")
         try FileManager.default.createDirectory(atPath: evaluatorsDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
@@ -677,7 +677,7 @@ struct EvaluatorRunnerTests {
         name: nested_workflow
         type: workflow
         """
-        let yamlPath = (evaluatorsDir as NSString).appendingPathComponent("nested_workflow.yml")
+        let yamlPath = evaluatorsDir.appendingPathComponent("nested_workflow.yml")
         try yaml.write(toFile: yamlPath, atomically: true, encoding: .utf8)
 
         let runner = makeRunner(basePath: tempDir)
@@ -694,7 +694,7 @@ struct EvaluatorRunnerTests {
     @Test("Workflow evaluator resolves template variables in workflow path")
     func workflowEvaluatorResolvesTemplates() async throws {
         let tempDir = NSTemporaryDirectory() + "orc-test-\(UUID().uuidString)"
-        let evaluatorsDir = (tempDir as NSString).appendingPathComponent("evaluators")
+        let evaluatorsDir = tempDir.appendingPathComponent("evaluators")
         try FileManager.default.createDirectory(atPath: evaluatorsDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
@@ -703,7 +703,7 @@ struct EvaluatorRunnerTests {
         type: workflow
         command: "{{workspace}}/workflows/check.yml"
         """
-        let yamlPath = (evaluatorsDir as NSString).appendingPathComponent("nested_workflow.yml")
+        let yamlPath = evaluatorsDir.appendingPathComponent("nested_workflow.yml")
         try yaml.write(toFile: yamlPath, atomically: true, encoding: .utf8)
 
         let fakeProcess = FakeProcessRunner(handler: { command, _, _, stdoutPath, stderrPath in
@@ -743,7 +743,7 @@ struct EvaluatorRunnerTests {
     func builtInPriority() async throws {
         // Even if an approved.yml exists, the built-in evaluator should be used.
         let tempDir = NSTemporaryDirectory() + "orc-test-\(UUID().uuidString)"
-        let evaluatorsDir = (tempDir as NSString).appendingPathComponent("evaluators")
+        let evaluatorsDir = tempDir.appendingPathComponent("evaluators")
         try FileManager.default.createDirectory(atPath: evaluatorsDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
@@ -753,7 +753,7 @@ struct EvaluatorRunnerTests {
         type: script
         command: "exit 1"
         """
-        let yamlPath = (evaluatorsDir as NSString).appendingPathComponent("approved.yml")
+        let yamlPath = evaluatorsDir.appendingPathComponent("approved.yml")
         try yaml.write(toFile: yamlPath, atomically: true, encoding: .utf8)
 
         let fakeProcess = FakeProcessRunner(exitCode: 1)
@@ -776,7 +776,7 @@ struct EvaluatorRunnerTests {
     @Test("loadEvaluatorDefinition loads from .orc/evaluators/ directory")
     func loadFromDisk() throws {
         let tempDir = NSTemporaryDirectory() + "orc-test-\(UUID().uuidString)"
-        let evaluatorsDir = (tempDir as NSString).appendingPathComponent("evaluators")
+        let evaluatorsDir = tempDir.appendingPathComponent("evaluators")
         try FileManager.default.createDirectory(atPath: evaluatorsDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
@@ -785,7 +785,7 @@ struct EvaluatorRunnerTests {
         type: script
         command: "echo hello"
         """
-        let yamlPath = (evaluatorsDir as NSString).appendingPathComponent("my_evaluator.yml")
+        let yamlPath = evaluatorsDir.appendingPathComponent("my_evaluator.yml")
         try yaml.write(toFile: yamlPath, atomically: true, encoding: .utf8)
 
         let runner = makeRunner(basePath: tempDir)

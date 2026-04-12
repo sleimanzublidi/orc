@@ -20,7 +20,7 @@ actor WorkflowStore: WorkflowStoring {
     init(path: String) throws {
         // Verify the parent directory exists before attempting to open the database,
         // so callers can catch a typed StoreError instead of a raw GRDB error.
-        let parentDir = (path as NSString).deletingLastPathComponent
+        let parentDir = path.deletingLastPathComponent
         if !FileManager.default.fileExists(atPath: parentDir) {
             throw StoreError.databaseNotFound(path: path)
         }

@@ -61,13 +61,13 @@ struct RespondCommandTests {
         ).path
 
         // Create source file with known content.
-        let sourceDir = (tempDir as NSString).appendingPathComponent("source")
+        let sourceDir = tempDir.appendingPathComponent("source")
         try fm.createDirectory(atPath: sourceDir, withIntermediateDirectories: true)
-        let sourceFile = (sourceDir as NSString).appendingPathComponent("response.txt")
+        let sourceFile = sourceDir.appendingPathComponent("response.txt")
         try "test file content".write(toFile: sourceFile, atomically: true, encoding: .utf8)
 
         // Create workspace directory (artifacts/ should be created by the command).
-        let workspaceDir = (tempDir as NSString).appendingPathComponent("workspace")
+        let workspaceDir = tempDir.appendingPathComponent("workspace")
         try fm.createDirectory(atPath: workspaceDir, withIntermediateDirectories: true)
 
         defer {
@@ -97,7 +97,7 @@ struct RespondCommandTests {
         #expect(capturedResponse == "artifacts/response.txt")
 
         // Verify the file was actually copied to workspace/artifacts/.
-        let copiedPath = (workspaceDir as NSString)
+        let copiedPath = workspaceDir
             .appendingPathComponent("artifacts/response.txt")
         #expect(fm.fileExists(atPath: copiedPath))
 
@@ -115,7 +115,7 @@ struct RespondCommandTests {
 
         // Create a readable source file so we get past the readability check.
         try fm.createDirectory(atPath: tempDir, withIntermediateDirectories: true)
-        let sourceFile = (tempDir as NSString).appendingPathComponent("data.txt")
+        let sourceFile = tempDir.appendingPathComponent("data.txt")
         try "content".write(toFile: sourceFile, atomically: true, encoding: .utf8)
 
         defer {

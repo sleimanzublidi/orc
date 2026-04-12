@@ -20,9 +20,9 @@ public struct WorkspaceManager: Sendable {
     /// - Throws: If directory creation fails.
     func createWorkspace(runID: String) throws -> String {
         let runDir = workspacePath(for: runID)
-        let workDir = (runDir as NSString).appendingPathComponent("workspace")
-        let artifactsDir = (runDir as NSString).appendingPathComponent("artifacts")
-        let logsDir = (runDir as NSString).appendingPathComponent("logs")
+        let workDir = runDir.appendingPathComponent("workspace")
+        let artifactsDir = runDir.appendingPathComponent("artifacts")
+        let logsDir = runDir.appendingPathComponent("logs")
 
         let fm = FileManager.default
         try fm.createDirectory(atPath: workDir, withIntermediateDirectories: true)
@@ -95,7 +95,7 @@ public struct WorkspaceManager: Sendable {
     // MARK: - Private Helpers
 
     private func workspacePath(for runID: String) -> String {
-        (basePath as NSString)
+        basePath
             .appendingPathComponent("workspaces")
             .appending("/\(runID)")
     }

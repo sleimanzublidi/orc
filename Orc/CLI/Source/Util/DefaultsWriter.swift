@@ -16,7 +16,7 @@ enum DefaultsWriter {
 
         // Ensure subdirectories exist.
         for dir in EmbeddedDefaults.directories {
-            let dirPath = (orcDir as NSString).appendingPathComponent(dir)
+            let dirPath = orcDir.appendingPathComponent(dir)
             if !fm.fileExists(atPath: dirPath) {
                 try fm.createDirectory(atPath: dirPath, withIntermediateDirectories: true)
             }
@@ -24,10 +24,10 @@ enum DefaultsWriter {
 
         // Write files.
         for entry in EmbeddedDefaults.files {
-            let dstPath = (orcDir as NSString).appendingPathComponent(entry.path)
+            let dstPath = orcDir.appendingPathComponent(entry.path)
 
             // Ensure parent directory exists.
-            let parent = (dstPath as NSString).deletingLastPathComponent
+            let parent = dstPath.deletingLastPathComponent
             if !fm.fileExists(atPath: parent) {
                 try fm.createDirectory(atPath: parent, withIntermediateDirectories: true)
             }

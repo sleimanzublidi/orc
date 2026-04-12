@@ -49,7 +49,7 @@ struct OrcDirectoryTests {
         defer { FileManager.default.changeCurrentDirectoryPath(original) }
 
         let tmp = try makeTempDir(suffix: "cwd")
-        let orcDir = (tmp as NSString).appendingPathComponent(".orc")
+        let orcDir = tmp.appendingPathComponent(".orc")
         try FileManager.default.createDirectory(
             atPath: orcDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: tmp) }
@@ -68,8 +68,8 @@ struct OrcDirectoryTests {
         // Create: tmp/.orc/ and tmp/child/grandchild/
         // Set cwd to grandchild — find() should walk up and discover tmp/.orc/
         let tmp = try makeTempDir(suffix: "walk")
-        let orcDir = (tmp as NSString).appendingPathComponent(".orc")
-        let nested = (tmp as NSString)
+        let orcDir = tmp.appendingPathComponent(".orc")
+        let nested = tmp
             .appendingPathComponent("child/grandchild")
         try FileManager.default.createDirectory(
             atPath: orcDir, withIntermediateDirectories: true)
@@ -106,7 +106,7 @@ struct OrcDirectoryTests {
         defer { FileManager.default.changeCurrentDirectoryPath(original) }
 
         let tmp = try makeTempDir(suffix: "req-ok")
-        let orcDir = (tmp as NSString).appendingPathComponent(".orc")
+        let orcDir = tmp.appendingPathComponent(".orc")
         try FileManager.default.createDirectory(
             atPath: orcDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: tmp) }
@@ -142,9 +142,9 @@ struct OrcDirectoryTests {
         let tmp = try makeTempDir(suffix: "resolve-yaml")
         defer { try? FileManager.default.removeItem(atPath: tmp) }
 
-        let workflowsDir = (tmp as NSString).appendingPathComponent("workflows")
+        let workflowsDir = tmp.appendingPathComponent("workflows")
         try FileManager.default.createDirectory(atPath: workflowsDir, withIntermediateDirectories: true)
-        let yamlPath = (workflowsDir as NSString).appendingPathComponent("deploy.yaml")
+        let yamlPath = workflowsDir.appendingPathComponent("deploy.yaml")
         FileManager.default.createFile(atPath: yamlPath, contents: nil)
 
         let result = OrcDirectory.resolveWorkflowFile("deploy", basePath: tmp)
@@ -156,9 +156,9 @@ struct OrcDirectoryTests {
         let tmp = try makeTempDir(suffix: "resolve-yml")
         defer { try? FileManager.default.removeItem(atPath: tmp) }
 
-        let workflowsDir = (tmp as NSString).appendingPathComponent("workflows")
+        let workflowsDir = tmp.appendingPathComponent("workflows")
         try FileManager.default.createDirectory(atPath: workflowsDir, withIntermediateDirectories: true)
-        let ymlPath = (workflowsDir as NSString).appendingPathComponent("deploy.yml")
+        let ymlPath = workflowsDir.appendingPathComponent("deploy.yml")
         FileManager.default.createFile(atPath: ymlPath, contents: nil)
 
         let result = OrcDirectory.resolveWorkflowFile("deploy", basePath: tmp)

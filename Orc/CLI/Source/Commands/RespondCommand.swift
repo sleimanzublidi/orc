@@ -49,13 +49,13 @@ struct RespondCommand: AsyncParsableCommand {
                     throw ExitCode.failure
                 }
 
-                let artifactsDir = (run.workspacePath as NSString).appendingPathComponent("artifacts")
+                let artifactsDir = run.workspacePath.appendingPathComponent("artifacts")
                 // Ensure the artifacts directory exists.
                 if !fm.fileExists(atPath: artifactsDir) {
                     try fm.createDirectory(atPath: artifactsDir, withIntermediateDirectories: true)
                 }
 
-                let destPath = (artifactsDir as NSString).appendingPathComponent(filename)
+                let destPath = artifactsDir.appendingPathComponent(filename)
                 // Remove any existing file at the destination to allow overwrite.
                 if fm.fileExists(atPath: destPath) {
                     try fm.removeItem(atPath: destPath)

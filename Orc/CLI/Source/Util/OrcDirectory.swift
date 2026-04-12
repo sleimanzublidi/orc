@@ -12,13 +12,13 @@ enum OrcDirectory {
         var current = fm.currentDirectoryPath
 
         while true {
-            let candidate = (current as NSString).appendingPathComponent(".orc")
+            let candidate = current.appendingPathComponent(".orc")
             var isDir: ObjCBool = false
             if fm.fileExists(atPath: candidate, isDirectory: &isDir), isDir.boolValue {
                 return candidate
             }
 
-            let parent = (current as NSString).deletingLastPathComponent
+            let parent = current.deletingLastPathComponent
             if parent == current {
                 return nil
             }
@@ -51,10 +51,10 @@ enum OrcDirectory {
         }
 
         let fm = FileManager.default
-        let workflowsDir = (basePath as NSString).appendingPathComponent("workflows")
+        let workflowsDir = basePath.appendingPathComponent("workflows")
 
         for ext in ["yaml", "yml"] {
-            let candidate = (workflowsDir as NSString).appendingPathComponent("\(argument).\(ext)")
+            let candidate = workflowsDir.appendingPathComponent("\(argument).\(ext)")
             if fm.fileExists(atPath: candidate) {
                 return candidate
             }

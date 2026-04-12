@@ -28,7 +28,7 @@ struct EmbedDefaultsTool {
 
         let swift = generateSwift(entries: entries, directories: directories.sorted())
 
-        let outputDir = (outputFile as NSString).deletingLastPathComponent
+        let outputDir = URL(fileURLWithPath: outputFile).deletingLastPathComponent().path
         try fm.createDirectory(atPath: outputDir, withIntermediateDirectories: true)
         try swift.write(toFile: outputFile, atomically: true, encoding: .utf8)
     }
@@ -43,7 +43,7 @@ struct EmbedDefaultsTool {
         let items = try fm.contentsOfDirectory(atPath: dir).sorted()
 
         for item in items where !item.hasPrefix(".") {
-            let fullPath = (dir as NSString).appendingPathComponent(item)
+            let fullPath = URL(fileURLWithPath: dir).appendingPathComponent(item).path
             let relativePath = String(fullPath.dropFirst(base.count + 1))
 
             var isDir: ObjCBool = false

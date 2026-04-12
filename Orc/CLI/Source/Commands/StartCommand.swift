@@ -193,10 +193,10 @@ extension StartCommand {
             for (fileInput, path) in zip(fileInputs, files) {
                 // Resolve to absolute path.
                 let absolute: String
-                if (path as NSString).isAbsolutePath {
+                if path.isAbsolutePath {
                     absolute = path
                 } else {
-                    absolute = (fm.currentDirectoryPath as NSString).appendingPathComponent(path)
+                    absolute = fm.currentDirectoryPath.appendingPathComponent(path)
                 }
 
                 guard fm.fileExists(atPath: absolute) else {

@@ -22,7 +22,7 @@ struct InitCommand: AsyncParsableCommand {
 
     func run() async throws {
         let cwd = FileManager.default.currentDirectoryPath
-        let orcDir = (cwd as NSString).appendingPathComponent(".orc")
+        let orcDir = cwd.appendingPathComponent(".orc")
 
         do {
             if update {

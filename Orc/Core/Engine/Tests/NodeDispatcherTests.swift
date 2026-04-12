@@ -689,7 +689,7 @@ struct NodeDispatcherTests {
         #expect(childRun != nil)
 
         // The child workspace should be under <parent-workspace>/nested/<node-id>/
-        let expectedPath = (tmpWorkspace as NSString)
+        let expectedPath = tmpWorkspace
             .appendingPathComponent("nested")
             .appending("/nest")
         #expect(childRun?.workspacePath == expectedPath)
@@ -940,7 +940,7 @@ struct NodeDispatcherTests {
     func promptFileReadsFromFile() async throws {
         // Write a prompt to a temp file.
         let tmpDir = NSTemporaryDirectory()
-        let promptPath = (tmpDir as NSString).appendingPathComponent("test-prompt-\(UUID().uuidString).md")
+        let promptPath = tmpDir.appendingPathComponent("test-prompt-\(UUID().uuidString).md")
         try "Summarize the project".write(toFile: promptPath, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(atPath: promptPath) }
 
@@ -963,7 +963,7 @@ struct NodeDispatcherTests {
     @Test("prompt_file path supports template variables")
     func promptFileWithTemplate() async throws {
         let tmpDir = NSTemporaryDirectory()
-        let promptPath = (tmpDir as NSString).appendingPathComponent("test-prompt-\(UUID().uuidString).md")
+        let promptPath = tmpDir.appendingPathComponent("test-prompt-\(UUID().uuidString).md")
         try "Hello from file".write(toFile: promptPath, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(atPath: promptPath) }
 
