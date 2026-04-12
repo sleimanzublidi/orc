@@ -14,6 +14,7 @@ final class MockEngine: OrcEngineProviding, @unchecked Sendable {
     // MARK: - Core Operations
 
     var startHandler: ((String, [String: String], Int?) async throws -> Run)?
+    var startStreamingHandler: ((String, [String: String], Int?) async throws -> AsyncThrowingStream<WorkflowEvent, any Error>)?
     var resumeHandler: ((String) async throws -> Run)?
     var cancelHandler: ((String) async throws -> Void)?
     var respondHandler: ((String, String, String) async throws -> Void)?
@@ -52,6 +53,26 @@ final class MockEngine: OrcEngineProviding, @unchecked Sendable {
     ) async throws -> Run {
         guard let handler = startHandler else { fatalError("startHandler not set") }
         return try await handler(workflowFile, inputs, maxParallelNodes)
+    }
+
+    func startStreaming(
+        workflowFile: String,
+        inputs: [String: String],
+        maxParallelNodes: Int?
+    ) async throws -> AsyncThrowingStream<WorkflowEvent, any Error> {
+        if let handler = startStreamingHandler {
+            return try await handler(workflowFile, inputs, maxParallelNodes)
+        }
+        // Fall back: call start() and wrap the result in a single-event stream.
+        let run = try await start(workflowFile: workflowFile, inputs: inputs, maxParallelNodes: maxParallelNodes)
+        return AsyncThrowingStream { continuation in
+            if run.status == .failed {
+                continuation.yield(.runFailed(run, error: "Run failed"))
+            } else {
+                continuation.yield(.runCompleted(run))
+            }
+            continuation.finish()
+        }
     }
 
     func resume(runID: String) async throws -> Run {

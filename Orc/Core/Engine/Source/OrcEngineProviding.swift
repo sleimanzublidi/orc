@@ -21,6 +21,12 @@ public protocol OrcEngineProviding: Sendable {
         maxParallelNodes: Int?
     ) async throws -> Run
 
+    func startStreaming(
+        workflowFile: String,
+        inputs: [String: String],
+        maxParallelNodes: Int?
+    ) async throws -> AsyncThrowingStream<WorkflowEvent, any Error>
+
     func resume(runID: String) async throws -> Run
 
     func cancel(runID: String) async throws
@@ -72,6 +78,34 @@ public protocol OrcEngineProviding: Sendable {
     // MARK: - Properties
 
     var basePath: String { get }
+}
+
+// MARK: - Default Streaming Implementation
+
+/// Provides a fallback `startStreaming()` for conformers that only implement
+/// `start()`. Calls `start()` and wraps the resulting `Run` in a single-event
+/// stream. Real streaming (with per-node events) requires the concrete
+/// `WorkflowEngine` implementation.
+extension OrcEngineProviding {
+    public func startStreaming(
+        workflowFile: String,
+        inputs: [String: String],
+        maxParallelNodes: Int? = nil
+    ) async throws -> AsyncThrowingStream<WorkflowEvent, any Error> {
+        let run = try await self.start(
+            workflowFile: workflowFile,
+            inputs: inputs,
+            maxParallelNodes: maxParallelNodes
+        )
+        return AsyncThrowingStream { continuation in
+            if run.status == .failed {
+                continuation.yield(.runFailed(run, error: "Run failed"))
+            } else {
+                continuation.yield(.runCompleted(run))
+            }
+            continuation.finish()
+        }
+    }
 }
 
 // MARK: - WorkflowEngine Conformance

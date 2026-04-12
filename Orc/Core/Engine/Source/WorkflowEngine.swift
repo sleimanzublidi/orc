@@ -344,6 +344,186 @@ public actor WorkflowEngine {
         return completedRun
     }
 
+    // MARK: - Streaming
+
+    /// Starts a new workflow run with real-time event streaming.
+    ///
+    /// Returns an `AsyncThrowingStream` that yields `WorkflowEvent`s as the
+    /// workflow executes. The stream starts with `.runStarted`, emits node
+    /// lifecycle and output events during execution, and finishes with
+    /// `.runCompleted` or `.runFailed`.
+    ///
+    /// The setup phase (parsing, validation, run creation) happens before
+    /// the stream is returned. If setup fails, this method throws directly.
+    ///
+    /// - Parameters:
+    ///   - workflowFile: Path to the workflow YAML file.
+    ///   - inputs: User-supplied input values.
+    ///   - maxParallelNodes: Override for maximum parallel node execution.
+    /// - Returns: A stream of workflow events.
+    public func startStreaming(
+        workflowFile: String,
+        inputs: [String: String],
+        maxParallelNodes: Int? = nil
+    ) async throws -> AsyncThrowingStream<WorkflowEvent, any Error> {
+        // Canonicalize the workflow file path so comparisons are robust
+        // against relative vs absolute paths and symlinks.
+        let canonicalPath = URL(fileURLWithPath: workflowFile).standardizedFileURL.path
+        let workflow = try parser.parse(file: canonicalPath)
+
+        // Prevent concurrent runs of the same workflow file.
+        for status in [RunStatus.running, .pending, .awaitingInput] {
+            let existingRuns = try await store.listRuns(status: status)
+            if let existing = existingRuns.first(where: { $0.workflowFile == canonicalPath }) {
+                throw EngineError.workflowAlreadyRunning(id: existing.id)
+            }
+        }
+
+        // Build execution plan (topological sort).
+        let planner = ExecutionPlanner()
+        let plan = try planner.plan(workflow: workflow)
+
+        // Determine max parallel nodes.
+        let config = try configManager.loadConfig()
+        let parallelLimit = maxParallelNodes ?? config.maxParallelNodes
+
+        // Create the run record first so we get the real 8-char run ID.
+        let pendingRun = Run(
+            id: "",
+            workflowName: workflow.name,
+            workflowFile: canonicalPath,
+            status: .running,
+            workspacePath: "",
+            inputs: inputs,
+            cleanupPolicy: workflow.cleanupPolicy
+        )
+        var run = try await store.createRun(pendingRun)
+
+        // Now create the workspace using the actual run ID.
+        let workspacePath = try workspaceManager.createWorkspace(runID: run.id)
+        try await store.updateRunWorkspacePath(id: run.id, workspacePath: workspacePath)
+        run = Run(
+            id: run.id,
+            workflowName: run.workflowName,
+            workflowFile: run.workflowFile,
+            status: run.status,
+            workspacePath: workspacePath,
+            inputs: run.inputs,
+            output: run.output,
+            cleanupPolicy: run.cleanupPolicy,
+            createdAt: run.createdAt,
+            updatedAt: run.updatedAt
+        )
+
+        // Build internal handlers.
+        let evaluatorRunner = EvaluatorRunner(
+            providers: providers,
+            store: store,
+            templateResolver: templateResolver,
+            processRunner: ProviderFactory.makeProcessRunner(),
+            basePath: workspaceManager.basePath,
+            orcBinaryPath: ProcessInfo.processInfo.arguments.first ?? "/usr/local/bin/orc"
+        )
+
+        let tmuxSession = ProviderFactory.makeTmuxSession()
+
+        let repoRoot = workspaceManager.basePath.deletingLastPathComponent
+        let dotEnv = DotEnvLoader.load(from: workspaceManager.basePath + "/.env")
+        let environment = ProcessInfo.processInfo.environment.merging(dotEnv) { existing, _ in existing }
+
+        // Capture all needed properties into local constants before the
+        // @Sendable closure. We cannot capture `self` (the actor) inside
+        // the AsyncThrowingStream closure because it must be @Sendable.
+        let capturedRun = run
+        let capturedWorkflow = workflow
+        let capturedPlan = plan
+        let capturedStore = store
+        let capturedProviders = providers
+        let capturedParser = parser
+        let capturedTemplateResolver = templateResolver
+        let capturedExpressionEvaluator = expressionEvaluator
+        let capturedWorkspaceManager = workspaceManager
+
+        return AsyncThrowingStream { continuation in
+            let dispatchTask = Task { @Sendable in
+                continuation.yield(.runStarted(capturedRun))
+
+                let interactiveHandler = InteractiveHandler(
+                    store: capturedStore,
+                    providers: capturedProviders,
+                    tmux: tmuxSession,
+                    templateResolver: capturedTemplateResolver
+                )
+
+                let loopHandler = LoopHandler(
+                    providers: capturedProviders,
+                    store: capturedStore,
+                    evaluatorRunner: evaluatorRunner,
+                    templateResolver: capturedTemplateResolver,
+                    tmux: tmuxSession,
+                    onEvent: { event in continuation.yield(event) }
+                )
+
+                let dispatcher = NodeDispatcher(
+                    plan: capturedPlan,
+                    providers: capturedProviders,
+                    store: capturedStore,
+                    parser: capturedParser,
+                    templateResolver: capturedTemplateResolver,
+                    expressionEvaluator: capturedExpressionEvaluator,
+                    evaluatorRunner: evaluatorRunner,
+                    interactiveHandler: interactiveHandler,
+                    loopHandler: loopHandler,
+                    maxParallelNodes: parallelLimit,
+                    repoRoot: repoRoot,
+                    environment: environment,
+                    onEvent: { event in continuation.yield(event) }
+                )
+
+                let startTime = Date()
+
+                do {
+                    let completedRun = try await dispatcher.execute(
+                        run: capturedRun,
+                        inputs: inputs
+                    )
+
+                    let duration = Date().timeIntervalSince(startTime)
+                    try? await capturedStore.recordStats(
+                        run: completedRun,
+                        nodeCount: capturedWorkflow.nodes.count,
+                        duration: duration
+                    )
+
+                    try? capturedWorkspaceManager.cleanupWorkspace(
+                        runID: capturedRun.id,
+                        policy: capturedWorkflow.cleanupPolicy,
+                        runStatus: completedRun.status
+                    )
+
+                    if completedRun.status == .failed {
+                        continuation.yield(.runFailed(completedRun, error: "One or more nodes failed"))
+                    } else {
+                        continuation.yield(.runCompleted(completedRun))
+                    }
+                    continuation.finish()
+                } catch {
+                    try? await capturedStore.updateRunStatus(id: capturedRun.id, status: .failed)
+                    let failedRun = (try? await capturedStore.getRun(id: capturedRun.id)) ?? capturedRun
+                    continuation.yield(.runFailed(failedRun, error: error.localizedDescription))
+                    continuation.finish(throwing: error)
+                }
+            }
+
+            // Cancellation is handled via the stream's onTermination handler
+            // rather than runningTasks, since we cannot access self (the actor)
+            // from this @Sendable closure.
+            continuation.onTermination = { @Sendable _ in
+                dispatchTask.cancel()
+            }
+        }
+    }
+
     /// Resumes a previously failed, cancelled, or awaiting-input run.
     ///
     /// Re-parses the workflow (which may have been modified), validates that all
