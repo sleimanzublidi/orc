@@ -84,6 +84,7 @@ orc start ask-claude "What is the meaning of life?"
 | `workflow` | string | -- | Path to child workflow (see [Nested Workflows](nested-workflows.md)) |
 | `inputs` | map | -- | Input mapping for nested workflows |
 | `workspace` | string | `"shared"` | Nested workflow workspace mode: `shared` or `isolated` |
+| `permission_mode` | string | `"acceptEdits"` | Claude Code permission mode: `default`, `acceptEdits`, `full`, `plan`, or `bypassPermissions` |
 
 ### Dependencies and Parallelization
 

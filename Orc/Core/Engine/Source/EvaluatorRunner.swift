@@ -253,7 +253,7 @@ struct EvaluatorRunner: EvaluatorProviding, Sendable {
 
         let output: TaskOutput
         do {
-            output = try await provider.execute(prompt: resolvedPrompt, context: resolvedContext, timeout: nil)
+            output = try await provider.execute(prompt: resolvedPrompt, context: resolvedContext, timeout: nil, permissionMode: nil)
         } catch {
             throw EngineError.evaluatorFailed(
                 name: definition.name,

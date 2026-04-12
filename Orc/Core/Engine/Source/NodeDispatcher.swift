@@ -383,7 +383,7 @@ struct NodeDispatcher: Sendable {
             }
             do {
                 let provider = try providers.provider(named: agentName)
-                let output = try await provider.execute(prompt: resolvedPrompt, context: context, timeout: node.timeoutSeconds)
+                let output = try await provider.execute(prompt: resolvedPrompt, context: context, timeout: node.timeoutSeconds, permissionMode: node.permissionMode)
 
                 try await store.updateNodeExecution(
                     id: execID,

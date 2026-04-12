@@ -390,6 +390,20 @@ struct WorkflowParser: WorkflowParsing, Sendable {
             workspaceMode = nil
         }
 
+        // permission_mode (optional — claude-code --permission-mode value)
+        let permissionMode: PermissionMode?
+        if let pmStr = dict["permission_mode"] as? String {
+            guard let mode = PermissionMode(rawValue: pmStr) else {
+                throw ParserError.invalidExpression(
+                    node: id,
+                    detail: "Invalid permission mode '\(pmStr)'; expected 'default', 'acceptEdits', 'full', 'plan', or 'bypassPermissions'"
+                )
+            }
+            permissionMode = mode
+        } else {
+            permissionMode = nil
+        }
+
         return Node(
             id: id,
             agent: agent,
@@ -405,7 +419,8 @@ struct WorkflowParser: WorkflowParsing, Sendable {
             onFailure: onFailure,
             workflow: workflow,
             inputs: inputs,
-            workspaceMode: workspaceMode
+            workspaceMode: workspaceMode,
+            permissionMode: permissionMode
         )
     }
 

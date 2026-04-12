@@ -160,7 +160,7 @@ private final class CountingFakeProvider: AgentProviding, @unchecked Sendable {
         self.outputs = outputs
     }
 
-    func execute(prompt: String, context: TaskContext, timeout: Int? = nil) async throws -> TaskOutput {
+    func execute(prompt: String, context: TaskContext, timeout: Int? = nil, permissionMode: PermissionMode? = nil) async throws -> TaskOutput {
         let output = callCount < outputs.count ? outputs[callCount] : outputs.last ?? ""
         callCount += 1
         return TaskOutput(output: output, exitStatus: 0)

@@ -24,7 +24,7 @@ struct ShellProvider: AgentProviding, Sendable {
         self.tmuxProvider = tmuxProvider
     }
 
-    func execute(prompt: String, context: TaskContext, timeout: Int? = nil) async throws -> TaskOutput {
+    func execute(prompt: String, context: TaskContext, timeout: Int? = nil, permissionMode: PermissionMode? = nil) async throws -> TaskOutput {
         let stdoutPath = NSTemporaryDirectory()
             + "orc-shell-stdout-\(UUID().uuidString).txt"
         let stderrPath = NSTemporaryDirectory()

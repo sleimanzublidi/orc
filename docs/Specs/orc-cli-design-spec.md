@@ -94,6 +94,7 @@ output:
   - **`session`** — launches the agent in a tmux session. User attaches via `orc attach`. Requires `agent` field. Used for AI agents or tools that need an ongoing terminal session. Can be combined with `loop` — each loop iteration spawns a new tmux session, and the user re-attaches each time (see §7.4).
   - **`prompt`** — the engine pauses the node and displays a `message`. User responds via `orc respond` with text or a file (`--file` flag). No running process. Does not require an `agent` field.
 - **Nested workflows** — a node can reference another workflow file via `workflow:` instead of `agent`/`prompt`. The child workflow receives explicit `inputs:` and its final output flows back to the parent via `output:`. See §4 for workspace and failure semantics.
+- **`permission_mode`** — controls the Claude Code `--permission-mode` flag for `claude-code` agent nodes. Values: `default`, `acceptEdits`, `full`, `plan`, `bypassPermissions`. Defaults to `acceptEdits` when omitted. Only meaningful for `claude-code` nodes; ignored by other providers.
 
 ### Workspace vs user directories
 

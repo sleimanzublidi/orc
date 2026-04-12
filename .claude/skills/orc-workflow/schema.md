@@ -43,8 +43,21 @@ Known types: `string`, `file`, `bool`.
 | `workflow` | String | No | nil | Path to a nested workflow file. Mutually exclusive with `agent`/`command` |
 | `inputs` | {String: String} | No | nil | Input mapping for nested workflow nodes. Required (non-empty) when `workflow` is set. Values are template strings |
 | `workspace` | `"shared"` / `"isolated"` | No | `"shared"` | Workspace mode for nested workflows |
+| `permission_mode` | PermissionMode | No | `"acceptEdits"` | Claude Code `--permission-mode`. Only applies to `claude-code` agent nodes |
 
 **Constraint:** A node must have at least one of: `agent`, `command`, `workflow`, or `interactive: prompt`.
+
+## PermissionMode
+
+Controls which tools the Claude Code agent can use without prompting.
+
+| Value | Behavior |
+|-------|----------|
+| `"default"` | Claude Code default permission handling |
+| `"acceptEdits"` | Auto-approve file edits and common filesystem commands (default for orc) |
+| `"full"` | Auto-approve all tools including shell commands |
+| `"plan"` | Plan-only mode — no edits or execution |
+| `"bypassPermissions"` | Bypass all permission checks (equivalent to `--dangerously-skip-permissions`) |
 
 ## LoopConfig
 

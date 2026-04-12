@@ -31,7 +31,7 @@ struct CLIAgentProvider: AgentProviding, Sendable {
         self.tmuxProvider = tmuxProvider
     }
 
-    func execute(prompt: String, context: TaskContext, timeout: Int? = nil) async throws -> TaskOutput {
+    func execute(prompt: String, context: TaskContext, timeout: Int? = nil, permissionMode: PermissionMode? = nil) async throws -> TaskOutput {
         // NOTE: CLIAgentProvider intentionally uses shell-string construction (not
         // direct execution) because the command template is user-defined and may
         // require shell features (pipes, redirects, variable expansion, etc.).

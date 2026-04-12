@@ -54,7 +54,7 @@ struct ClaudeCodeProviderTests {
         #expect(runner.capturedExecutablePath == "/usr/local/bin/claude")
         // Verify arguments are passed as discrete values, not interpolated
         // into a shell string. This prevents shell-string injection.
-        #expect(runner.capturedArguments == ["-p", "Hello world", "--output-format", "json"])
+        #expect(runner.capturedArguments == ["-p", "Hello world", "--output-format", "json", "--permission-mode", "acceptEdits"])
     }
 
     @Test("Parses valid JSON array with result element")
@@ -165,7 +165,67 @@ struct ClaudeCodeProviderTests {
         // With direct execution the prompt is passed as a discrete argument,
         // so no escaping is needed — the raw string reaches the binary verbatim.
         #expect(runner.capturedExecutablePath == "/usr/local/bin/claude")
-        #expect(runner.capturedArguments == ["-p", dangerousPrompt, "--output-format", "json"])
+        #expect(runner.capturedArguments == ["-p", dangerousPrompt, "--output-format", "json", "--permission-mode", "acceptEdits"])
+    }
+
+    @Test("Defaults to acceptEdits when no permission mode specified")
+    func defaultPermissionMode() async throws {
+        let runner = FakeProcessRunner { _, _, stdoutPath, _ in
+            let json = """
+                [{"type":"result","result":"ok"}]
+                """
+            if let stdoutPath {
+                FileManager.default.createFile(
+                    atPath: stdoutPath,
+                    contents: json.data(using: .utf8)
+                )
+            }
+            return ProcessResult(
+                exitCode: 0,
+                stdoutPath: stdoutPath ?? "/dev/null",
+                stderrPath: "/dev/null"
+            )
+        }
+
+        let provider = ClaudeCodeProvider(
+            claudePath: "/usr/local/bin/claude",
+            processRunner: runner,
+            tmuxProvider: FakeTmuxProvider()
+        )
+
+        _ = try await provider.execute(prompt: "test", context: context)
+
+        #expect(runner.capturedArguments?.contains("acceptEdits") == true)
+    }
+
+    @Test("Uses explicit permission mode when provided")
+    func explicitPermissionMode() async throws {
+        let runner = FakeProcessRunner { _, _, stdoutPath, _ in
+            let json = """
+                [{"type":"result","result":"ok"}]
+                """
+            if let stdoutPath {
+                FileManager.default.createFile(
+                    atPath: stdoutPath,
+                    contents: json.data(using: .utf8)
+                )
+            }
+            return ProcessResult(
+                exitCode: 0,
+                stdoutPath: stdoutPath ?? "/dev/null",
+                stderrPath: "/dev/null"
+            )
+        }
+
+        let provider = ClaudeCodeProvider(
+            claudePath: "/usr/local/bin/claude",
+            processRunner: runner,
+            tmuxProvider: FakeTmuxProvider()
+        )
+
+        _ = try await provider.execute(prompt: "test", context: context, permissionMode: .full)
+
+        #expect(runner.capturedArguments == ["-p", "test", "--output-format", "json", "--permission-mode", "full"])
     }
 
     @Test("Interactive mode creates tmux session")

@@ -234,7 +234,7 @@ struct LoopHandler: Sendable {
 
                 // Standard (non-interactive) execution.
                 return try await provider.execute(
-                    prompt: resolvedPrompt, context: context, timeout: node.timeoutSeconds
+                    prompt: resolvedPrompt, context: context, timeout: node.timeoutSeconds, permissionMode: node.permissionMode
                 )
             } catch {
                 lastError = error

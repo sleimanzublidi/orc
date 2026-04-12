@@ -41,12 +41,11 @@ PreBuild/orc
 PreBuild/debug*
 
 # Claude
-.claude/scheduled_tasks.lock
 CLAUDE.local.md
+.claude/scheduled_tasks.lock
+.claude/skills/settings.local.json
 
 # Orc
 .orc/*
 !.orc/evaluators/
 !.orc/workflows/
-!.orc/reviews/
-!.orc/self-improve/

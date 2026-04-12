@@ -25,7 +25,7 @@ struct ClaudeCodeProvider: AgentProviding, Sendable {
         self.tmuxProvider = tmuxProvider
     }
 
-    func execute(prompt: String, context: TaskContext, timeout: Int? = nil) async throws -> TaskOutput {
+    func execute(prompt: String, context: TaskContext, timeout: Int? = nil, permissionMode: PermissionMode? = nil) async throws -> TaskOutput {
         let stdoutPath = NSTemporaryDirectory()
             + "orc-claude-stdout-\(UUID().uuidString).json"
         let stderrPath = NSTemporaryDirectory()
@@ -35,12 +35,17 @@ struct ClaudeCodeProvider: AgentProviding, Sendable {
         // responsible for persisting log paths and cleaning up afterward,
         // so that stderr content remains available for log persistence.
 
+        let mode = permissionMode ?? .acceptEdits
+
         // Use direct execution to avoid shell-string injection. The prompt
-        // is passed as a discrete argument, so shell metacharacters in user
+        // is passed as a discrete argument, so shell meta-characters in user
         // prompts (;, |, $(), etc.) are inert.
         let result = try await processRunner.run(
             command: claudePath,
-            arguments: ["-p", prompt, "--output-format", "json"],
+            arguments: ["-p", prompt,
+                        "--bare", "--no-chrome",
+                        "--output-format", "json",
+                        "--permission-mode", mode.rawValue],
             workingDirectory: context.repoRoot,
             environment: nil,
             timeout: timeout,

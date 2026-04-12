@@ -130,12 +130,14 @@ Workflow            — top-level: name, description, inputs, nodes, output mapp
 WorkflowInput       — name, type (string), required flag
 Node                — id, agent, prompt, command, depends_on, output alias,
                       when, loop config, interactive mode, retry/timeout/on_failure,
-                      nested workflow ref + inputs, workspaceMode: WorkspaceMode?
+                      nested workflow ref + inputs, workspaceMode: WorkspaceMode?,
+                      permissionMode: PermissionMode?
 InteractiveMode     — enum: .session, .prompt(message:)
 LoopConfig          — until (evaluator name), max_iterations, fresh_context
 RetryConfig         — max_attempts, delay_seconds
 FailureStrategy     — enum: .stop, .skip, .continue
 WorkspaceMode       — enum: .shared, .isolated
+PermissionMode      — enum: .defaultMode, .acceptEdits, .full, .plan, .bypassPermissions
 NodeStatus          — enum: .pending, .running, .awaitingInput, .completed,
                       .failed, .skipped, .cancelled
 RunStatus           — enum: .pending, .running, .awaitingInput, .completed,

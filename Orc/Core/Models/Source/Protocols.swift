@@ -6,7 +6,7 @@ import Foundation
 /// Each implementation knows how to execute prompts and manage interactive sessions.
 public protocol AgentProviding: Sendable {
     var name: String { get }
-    func execute(prompt: String, context: TaskContext, timeout: Int?) async throws -> TaskOutput
+    func execute(prompt: String, context: TaskContext, timeout: Int?, permissionMode: PermissionMode?) async throws -> TaskOutput
     func executeInteractive(prompt: String, context: TaskContext, sessionName: String, timeout: Int?) async throws -> TaskOutput
 }
 

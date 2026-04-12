@@ -12,7 +12,26 @@ Sends a prompt to [Claude Code](https://claude.ai/code) and captures the result.
   prompt: "Analyze the architecture of this project."
 ```
 
-**How it works:** Runs `claude -p <prompt> --output-format json`, parses the JSON response, and extracts the result text.
+**How it works:** Runs `claude -p <prompt> --output-format json --permission-mode <mode>`, parses the JSON response, and extracts the result text.
+
+### Permission Mode
+
+The `permission_mode` node field controls which tools the agent can use without prompting. Defaults to `acceptEdits` if not specified.
+
+```yaml
+- id: implement
+  agent: claude-code
+  prompt: "Implement the feature"
+  permission_mode: full          # auto-approve all tools
+```
+
+| Value | Behavior |
+|-------|----------|
+| `default` | Claude Code default permission handling |
+| `acceptEdits` | Auto-approve file edits and common filesystem commands (default) |
+| `full` | Auto-approve all tools including shell commands |
+| `plan` | Plan-only mode — no edits or execution |
+| `bypassPermissions` | Bypass all permission checks |
 
 ### Configuration
 

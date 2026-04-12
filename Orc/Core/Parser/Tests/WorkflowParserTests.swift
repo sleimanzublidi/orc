@@ -118,6 +118,38 @@ struct ValidWorkflowTests {
         #expect(node.workflow == nil)
         #expect(node.inputs == nil)
         #expect(node.workspaceMode == nil)
+        #expect(node.permissionMode == nil)
+    }
+
+    @Test("Node with permission_mode")
+    func permissionMode() throws {
+        let yaml = """
+        name: "perm-test"
+        nodes:
+          - id: step1
+            agent: claude-code
+            prompt: "Do something"
+            permission_mode: full
+        """
+
+        let workflow = try parser.parse(yaml: yaml)
+        #expect(workflow.nodes[0].permissionMode == .full)
+    }
+
+    @Test("Invalid permission_mode throws")
+    func invalidPermissionMode() throws {
+        let yaml = """
+        name: "perm-test"
+        nodes:
+          - id: step1
+            agent: claude-code
+            prompt: "Do something"
+            permission_mode: invalid
+        """
+
+        #expect(throws: ParserError.self) {
+            _ = try parser.parse(yaml: yaml)
+        }
     }
 
     @Test("Workflow with loop config including prompt inside loop block")
