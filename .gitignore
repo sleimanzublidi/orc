@@ -45,6 +45,9 @@ CLAUDE.local.md
 .claude/scheduled_tasks.lock
 .claude/skills/settings.local.json
 
+# Worktrees
+.worktrees/
+
 # Orc
 .orc/*
 !.orc/evaluators/
