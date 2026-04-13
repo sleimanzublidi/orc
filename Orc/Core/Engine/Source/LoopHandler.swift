@@ -92,7 +92,8 @@ struct LoopHandler: Sendable {
                 resolvedPrompt = try templateResolver.resolve(template: prompt, context: currentContext)
             } else if let promptFile = node.promptFile {
                 let resolvedPath = try templateResolver.resolve(template: promptFile, context: currentContext)
-                resolvedPrompt = try String(contentsOfFile: resolvedPath, encoding: .utf8)
+                let fileContents = try String(contentsOfFile: resolvedPath, encoding: .utf8)
+                resolvedPrompt = try templateResolver.resolve(template: fileContents, context: currentContext)
             } else {
                 resolvedPrompt = ""
             }

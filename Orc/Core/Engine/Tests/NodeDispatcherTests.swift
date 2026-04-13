@@ -981,4 +981,83 @@ struct NodeDispatcherTests {
         #expect(result.status == .completed)
         #expect(fakeProvider.executedPrompts.last == "Hello from file")
     }
+
+    @Test("prompt_file contents are template-resolved with inputs and built-in variables")
+    func promptFileContentsTemplateResolved() async throws {
+        let tmpDir = NSTemporaryDirectory()
+        let promptPath = tmpDir.appendingPathComponent("test-prompt-resolve-\(UUID().uuidString).md")
+        try "Hello {{name}}, workspace is {{workspace}}".write(
+            toFile: promptPath, atomically: true, encoding: .utf8
+        )
+        defer { try? FileManager.default.removeItem(atPath: promptPath) }
+
+        let fakeProvider = FakeAgentProvider(name: "fake")
+        fakeProvider.defaultOutput = "done"
+        let store = FakeWorkflowStore()
+
+        let nodes = [Models.Node(id: "A", agent: .literal("fake"), promptFile: promptPath)]
+        let (dispatcher, _, run) = try makeDispatcher(
+            nodes: nodes, fakeProvider: fakeProvider, store: store
+        )
+        _ = try await store.createRun(run)
+
+        let result = try await dispatcher.execute(run: run, inputs: ["name": "world"])
+        #expect(result.status == .completed)
+        // The file contents should have {{name}} and {{workspace}} resolved.
+        #expect(fakeProvider.executedPrompts.last == "Hello world, workspace is /tmp/workspace")
+    }
+
+    @Test("prompt_file contents resolve upstream output references")
+    func promptFileContentsResolveUpstreamOutputs() async throws {
+        let tmpDir = NSTemporaryDirectory()
+        let promptPath = tmpDir.appendingPathComponent("test-prompt-upstream-\(UUID().uuidString).md")
+        try "Previous result: {{step1.output}}".write(
+            toFile: promptPath, atomically: true, encoding: .utf8
+        )
+        defer { try? FileManager.default.removeItem(atPath: promptPath) }
+
+        let fakeProvider = FakeAgentProvider(name: "fake")
+        fakeProvider.outputs = ["do step1": "result-A"]
+        fakeProvider.defaultOutput = "done"
+        let store = FakeWorkflowStore()
+
+        let nodes = [
+            Models.Node(id: "step1", agent: .literal("fake"), prompt: "do step1"),
+            Models.Node(id: "step2", agent: .literal("fake"), promptFile: promptPath, dependsOn: ["step1"]),
+        ]
+        let (dispatcher, _, run) = try makeDispatcher(
+            nodes: nodes, fakeProvider: fakeProvider, store: store
+        )
+        _ = try await store.createRun(run)
+
+        let result = try await dispatcher.execute(run: run, inputs: [:])
+        #expect(result.status == .completed)
+        // step2's prompt should have {{step1.output}} resolved to "result-A".
+        #expect(fakeProvider.executedPrompts.last == "Previous result: result-A")
+    }
+
+    @Test("prompt_file contents resolve orc_root variable")
+    func promptFileContentsResolveOrcRoot() async throws {
+        let tmpDir = NSTemporaryDirectory()
+        let promptPath = tmpDir.appendingPathComponent("test-prompt-orcroot-\(UUID().uuidString).md")
+        try "Save to {{orc_root}}/reports/".write(
+            toFile: promptPath, atomically: true, encoding: .utf8
+        )
+        defer { try? FileManager.default.removeItem(atPath: promptPath) }
+
+        let fakeProvider = FakeAgentProvider(name: "fake")
+        fakeProvider.defaultOutput = "done"
+        let store = FakeWorkflowStore()
+
+        let nodes = [Models.Node(id: "A", agent: .literal("fake"), promptFile: promptPath)]
+        let (dispatcher, _, run) = try makeDispatcher(
+            nodes: nodes, fakeProvider: fakeProvider, store: store
+        )
+        _ = try await store.createRun(run)
+
+        let result = try await dispatcher.execute(run: run, inputs: [:])
+        #expect(result.status == .completed)
+        // {{orc_root}} resolves to repoRoot + "/.orc", and repoRoot is "/tmp/repo" in makeDispatcher.
+        #expect(fakeProvider.executedPrompts.last == "Save to /tmp/repo/.orc/reports/")
+    }
 }

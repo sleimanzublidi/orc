@@ -160,6 +160,51 @@ struct LoopHandlerTests {
         // iteration should terminate the loop.
         #expect(fakeProvider.executedPrompts.count == 1)
     }
+
+    // MARK: - prompt_file Template Resolution
+
+    @Test("Loop iteration resolves template variables in prompt_file contents")
+    func loopPromptFileContentsTemplateResolved() async throws {
+        let tmpDir = NSTemporaryDirectory()
+        let promptPath = tmpDir.appendingPathComponent("test-loop-prompt-\(UUID().uuidString).md")
+        try "Iteration context: {{last_output}}, workspace: {{workspace}}".write(
+            toFile: promptPath, atomically: true, encoding: .utf8
+        )
+        defer { try? FileManager.default.removeItem(atPath: promptPath) }
+
+        // The provider returns "yes" on the first call so the "approved" evaluator
+        // stops the loop after one iteration.
+        let fakeProvider = FakeAgentProvider(name: "fake")
+        fakeProvider.defaultOutput = "yes"
+        let store = FakeWorkflowStore()
+
+        let (handler, _) = makeHandler(fakeProvider: fakeProvider, store: store)
+
+        let node = Models.Node(id: "loop-node", agent: .literal("fake"), promptFile: promptPath)
+        let loopConfig = ResolvedLoopConfig(until: "approved", maxIterations: 5, freshContext: false)
+        // Seed last_output in the outputs so the first iteration can resolve it.
+        let context = TaskContext(
+            outputs: ["last_output": "initial-value"],
+            repoRoot: "/tmp/repo",
+            workspacePath: "/tmp/workspace"
+        )
+
+        _ = try await store.createRun(makeRun())
+
+        let output = try await handler.executeLoop(
+            node: node, run: makeRun(), context: context,
+            loopConfig: loopConfig,
+            agentName: "fake",
+            timeoutSeconds: nil,
+            parameters: [:],
+            retryConfig: nil
+        )
+
+        #expect(output.output == "yes")
+        // Verify the provider received the prompt with template variables resolved.
+        #expect(fakeProvider.executedPrompts.count == 1)
+        #expect(fakeProvider.executedPrompts[0] == "Iteration context: initial-value, workspace: /tmp/workspace")
+    }
 }
 
 // MARK: - CountingFakeProvider
