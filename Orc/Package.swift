@@ -118,7 +118,7 @@ let package = Package(
             path: "Core/Server",
             exclude: ["Tests"],
             sources: ["Source"],
-            resources: [.copy("Resources")]
+            plugins: [.plugin(name: "EmbedDefaults")]
         ),
         .testTarget(
             name: "ServerTests",

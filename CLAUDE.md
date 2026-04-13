@@ -67,6 +67,7 @@ Always consult these specs before implementing or modifying features.
 - `internal` by default; explicit `public` only on Engine API surface
 - Per-module typed errors (e.g., `ParserError`, `StoreError`) -- no generic `Error` throws
 - No force unwraps outside tests
+- Single-binary deployment: all resources (help docs, web assets) are embedded as code via the `EmbedDefaults` build plugin -- no `Bundle.module` or external resource files
 - Test framework: Swift Testing (`@Test`, `#expect`)
 
 ## Dependencies
