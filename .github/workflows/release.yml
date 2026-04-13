@@ -1,0 +1,143 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  validate-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.extract.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract and validate version
+        id: extract
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          ORC_VERSION=$(grep -oE '"[0-9]+\.[0-9]+\.[0-9]+[^"]*"' Orc/Core/Models/Source/OrcInfo.swift | head -1 | tr -d '"')
+          if [ "$TAG_VERSION" != "$ORC_VERSION" ]; then
+            echo "::error::Tag version ($TAG_VERSION) does not match OrcInfo.swift ($ORC_VERSION)"
+            exit 1
+          fi
+          echo "version=$TAG_VERSION" >> "$GITHUB_OUTPUT"
+
+  test:
+    needs: validate-version
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run unit tests
+        working-directory: Orc
+        run: swift test
+
+      - name: Build debug binary
+        run: bash Scripts/build.sh
+
+      - name: Run smoke tests
+        run: bash Scripts/validate.sh
+
+  build-macos:
+    needs: test
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build universal release binary
+        run: bash Scripts/build.sh release
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-universal
+          path: PreBuild/release-orc-cli-universal-*.zip
+
+  build-linux-x86_64:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Linux x86_64 release
+        run: bash Scripts/build-linux.sh release
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86_64
+          path: PreBuild/orc-cli-*-linux-*.zip
+
+  build-linux-arm64:
+    needs: test
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Linux arm64 release
+        run: bash Scripts/build-linux.sh release
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-arm64
+          path: PreBuild/orc-cli-*-linux-*.zip
+
+  release:
+    needs:
+      - validate-version
+      - build-macos
+      - build-linux-x86_64
+      - build-linux-arm64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*.zip
+          generate_release_notes: true
+
+  update-formula:
+    needs:
+      - validate-version
+      - release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-universal
+          path: artifacts
+
+      - name: Update formula version and SHA-256
+        run: |
+          VERSION="${{ needs.validate-version.outputs.version }}"
+          ZIP=$(ls artifacts/release-orc-cli-universal-*.zip)
+          SHA256=$(sha256sum "$ZIP" | awk '{print $1}')
+          sed -i "s|version \".*\"|version \"$VERSION\"|" Formula/orc.rb
+          sed -i "s|sha256 \".*\"|sha256 \"$SHA256\"|" Formula/orc.rb
+
+      - name: Commit and push formula update
+        run: |
+          VERSION="${{ needs.validate-version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/orc.rb
+          git diff --cached --quiet && echo "Formula already up to date" && exit 0
+          git commit -m "Formula: orc $VERSION"
+          git push origin main

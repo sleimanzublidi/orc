@@ -124,10 +124,11 @@ sudo apt-get install libsqlite3-dev libicu-dev
    swift build -c release
    ```
 
-#### Homebrew (planned)
+#### Homebrew
 
 ```sh
-brew tap <owner>/orc && brew install orc
+brew tap sleimanzublidi/orc
+brew install orc
 ```
 
 #### Release archive
