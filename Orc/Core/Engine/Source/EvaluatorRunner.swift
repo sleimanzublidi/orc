@@ -67,10 +67,38 @@ struct EvaluatorRunner: EvaluatorProviding, Sendable {
     // MARK: - Built-in Evaluators
 
     /// Returns true if the output matches common approval words (case-insensitive).
+    ///
+    /// Checks both exact match (after trimming) and line-by-line containment
+    /// to handle multi-line outputs from nested workflows where the approval
+    /// word may appear on its own line or as a value in a key: value pair.
     private func evaluateApproved(lastOutput: String) -> Bool {
-        let normalized = lastOutput.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let approvalWords: Set<String> = ["yes", "y", "approve", "approved"]
-        return approvalWords.contains(normalized)
+        let normalized = lastOutput.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        // Exact match (original behavior).
+        if approvalWords.contains(normalized) {
+            return true
+        }
+
+        // Line-by-line check: split on newlines and check each line.
+        // Handles "result: APPROVED" by checking if any line, after stripping
+        // a leading "key: " prefix, matches an approval word.
+        for line in lastOutput.split(separator: "\n") {
+            let trimmedLine = line.trimmingCharacters(in: .whitespaces).lowercased()
+            if approvalWords.contains(trimmedLine) {
+                return true
+            }
+            // Check value after "key: " prefix (e.g., "result: approved").
+            if let colonIndex = trimmedLine.firstIndex(of: ":") {
+                let value = trimmedLine[trimmedLine.index(after: colonIndex)...]
+                    .trimmingCharacters(in: .whitespaces)
+                if approvalWords.contains(value) {
+                    return true
+                }
+            }
+        }
+
+        return false
     }
 
     /// Returns true if the current output matches the previous iteration's output.

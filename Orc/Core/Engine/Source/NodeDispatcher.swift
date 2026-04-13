@@ -685,25 +685,31 @@ struct NodeDispatcher: Sendable {
         context: TaskContext,
         config: ResolvedNodeConfig
     ) async -> (String, NodeStatus, String?, (any Error)?) {
+        let agentName = config.agent ?? "shell"
         let maxAttempts = config.retry?.maxAttempts ?? 1
         var lastError: (any Error)?
 
         guard let loopConfig = config.loop else {
-            return (node.id, .failed, nil, EngineError.invalidConfigValue(
+            let error = EngineError.invalidConfigValue(
                 node: node.id, field: "loop", value: "nil", expected: "loop configuration"
-            ))
+            )
+            onEvent(.nodeFailed(nodeID: node.id, runID: run.id, error: error.localizedDescription))
+            return (node.id, .failed, nil, error)
         }
+
+        onEvent(.nodeStarted(nodeID: node.id, runID: run.id, agent: agentName))
 
         for attempt in 1...maxAttempts {
             do {
                 let output = try await loopHandler.executeLoop(
                     node: node, run: run, context: context,
                     loopConfig: loopConfig,
-                    agentName: config.agent ?? "shell",
+                    agentName: agentName,
                     timeoutSeconds: config.timeoutSeconds,
                     parameters: config.parameters,
                     retryConfig: config.retry
                 )
+                onEvent(.nodeCompleted(nodeID: node.id, runID: run.id, output: output.output))
                 return (node.id, .completed, output.output, nil)
             } catch {
                 lastError = error
@@ -715,6 +721,7 @@ struct NodeDispatcher: Sendable {
             }
         }
 
+        onEvent(.nodeFailed(nodeID: node.id, runID: run.id, error: lastError?.localizedDescription ?? "unknown"))
         return (node.id, .failed, nil, lastError)
     }
 
@@ -760,6 +767,8 @@ struct NodeDispatcher: Sendable {
         } catch {
             logger.warning("[\(node.id)] Failed to persist nested workflow execution: \(error)")
         }
+
+        onEvent(.nodeStarted(nodeID: node.id, runID: run.id, agent: "nested-workflow"))
 
         logger.debug("nested workflow: \(workflowFile)")
 
@@ -952,39 +961,58 @@ struct NodeDispatcher: Sendable {
                 inputs: childInputs
             )
         } catch {
+            let detail = "Execution failed: \(error)"
             do {
                 try await store.updateNodeExecution(
                     id: execID,
                     status: .failed,
                     output: nil,
-                    error: "Child workflow execution failed: \(error)"
+                    error: detail
                 )
             } catch let storeError {
                 logger.warning("[\(node.id)] Failed to persist child execution failure: \(storeError)")
             }
+            onEvent(.nodeFailed(nodeID: node.id, runID: run.id, error: detail))
             return (node.id, .failed, nil, EngineError.nestedWorkflowFailed(
                 nodeID: node.id, workflowFile: workflowFile,
-                detail: "Execution failed: \(error)"
+                detail: detail
             ))
         }
 
         // 8. If the child failed, the parent node fails.
+        //    Query child executions to extract the actual root cause error.
         if childResult.status == .failed {
             logger.debug("nested workflow: \(workflowFile) failed")
+
+            // Find the actual error from the child's failed node(s).
+            var childErrorDetail = "Child workflow failed"
+            if let childExecs = try? await store.getNodeExecutions(runID: childRun.id, nodeID: nil) {
+                let failedNodes = childExecs.filter { $0.status == .failed }
+                let errorMessages = failedNodes.compactMap { exec -> String? in
+                    guard let error = exec.error else { return nil }
+                    return "[\(exec.nodeID)] \(error)"
+                }
+                if !errorMessages.isEmpty {
+                    childErrorDetail = errorMessages.joined(separator: "; ")
+                }
+            }
+
             do {
                 try await store.updateNodeExecution(
                     id: execID,
                     status: .failed,
                     output: nil,
-                    error: "Child workflow completed with status: failed"
+                    error: childErrorDetail
                 )
             } catch {
                 logger.warning("[\(node.id)] Failed to persist child workflow failure: \(error)")
             }
-            return (node.id, .failed, nil, EngineError.nestedWorkflowFailed(
+            let error = EngineError.nestedWorkflowFailed(
                 nodeID: node.id, workflowFile: workflowFile,
-                detail: "Child workflow failed"
-            ))
+                detail: childErrorDetail
+            )
+            onEvent(.nodeFailed(nodeID: node.id, runID: run.id, error: childErrorDetail))
+            return (node.id, .failed, nil, error)
         }
 
         // 9. Extract the child's output. Use the child run's output if it has one,
@@ -1023,6 +1051,7 @@ struct NodeDispatcher: Sendable {
         }
 
         logger.debug("nested workflow: \(workflowFile) completed")
+        onEvent(.nodeCompleted(nodeID: node.id, runID: run.id, output: childOutput))
         return (node.id, .completed, childOutput, nil)
     }
 
