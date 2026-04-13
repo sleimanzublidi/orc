@@ -1,0 +1,6 @@
+# Script evaluator — runs the validate.sh smoke test.
+# Exit code 0 = all checks passed (loop should stop).
+name: validate_tool
+description: Runs Scripts/validate.sh smoke tests against the PreBuild binary.
+type: script
+command: "bash Scripts/validate.sh"

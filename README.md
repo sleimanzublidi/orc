@@ -270,9 +270,10 @@ Configuration precedence: CLI flags > workflow YAML > `.orc/config.yml` > built-
 * [x] Nested workflow support
 * [x] `{{repo_root}}` built-in variable (absolute path to the repository root, distinct from `{{workspace}}`)
 * [x] Parameterized nested workflows (input defaults, template resolution in config fields, and caller overrides)
-* [ ] Agent-level output streaming, when running from terminal users don't know what's happening on agents
+* [x] Agent-level output streaming, when running from terminal users don't know what's happening on agents
 * [x] Local web server for browser-based monitoring
 * [x] Linux support (Implemented but not validated)
+* [ ] Git worktree isolation — `orc start --worktree` to run workflows in a temporary worktree, keeping the working tree clean
 
 See the [open issues](https://github.com/sleimanzublidi/orc/issues) for a full list of proposed features (and known issues).
 
