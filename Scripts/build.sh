@@ -2,9 +2,21 @@
 set -euo pipefail
 
 CONFIG="${1:-debug}"
-if [[ "$CONFIG" != "debug" && "$CONFIG" != "release" ]]; then
-    echo "Usage: $0 [debug|release]" >&2
+if [[ "$CONFIG" != "debug" && "$CONFIG" != "release" && "$CONFIG" != "install" ]]; then
+    echo "Usage: $0 [debug|release|install]" >&2
     exit 1
+fi
+
+# install = debug build + copy to Homebrew prefix
+INSTALL=false
+if [[ "$CONFIG" == "install" ]]; then
+    INSTALL=true
+    CONFIG="debug"
+    BREW_BIN="$(brew --prefix)/bin"
+    if [ ! -d "$BREW_BIN" ]; then
+        echo "Error: Homebrew bin directory not found at $BREW_BIN" >&2
+        exit 1
+    fi
 fi
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -50,6 +62,11 @@ if [[ "$CONFIG" == "debug" ]]; then
 
     echo ""
     echo "Debug build: $PREBUILD_DIR/orc"
+
+    if [[ "$INSTALL" == true ]]; then
+        cp "$PREBUILD_DIR/orc" "$BREW_BIN/orc"
+        echo "Installed:   $BREW_BIN/orc"
+    fi
 else
     echo "Building orc v${VERSION} (release, universal)..."
 
