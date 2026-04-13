@@ -46,6 +46,7 @@ if [[ "$CONFIG" == "debug" ]]; then
     fi
 
     cp "$BINARY" "$PREBUILD_DIR/orc"
+    codesign -f -s - "$PREBUILD_DIR/orc"
 
     echo ""
     echo "Debug build: $PREBUILD_DIR/orc"
