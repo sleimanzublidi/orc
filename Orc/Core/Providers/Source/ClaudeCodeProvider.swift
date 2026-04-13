@@ -103,7 +103,7 @@ struct ClaudeCodeProvider: AgentProviding, Sendable {
         parameters: [String: String] = [:]
     ) -> AsyncThrowingStream<AgentStreamEvent, any Error> {
         let stdoutPath = NSTemporaryDirectory()
-            + "orc-claude-stdout-\(UUID().uuidString).json"
+            + "orc-claude-stdout-\(UUID().uuidString).jsonl"
         let stderrPath = NSTemporaryDirectory()
             + "orc-claude-stderr-\(UUID().uuidString).txt"
 
@@ -111,9 +111,13 @@ struct ClaudeCodeProvider: AgentProviding, Sendable {
         let bare = parameters["bare"] == "true"
         let model = parameters["model"]
 
+        // Use stream-json for real-time NDJSON events on stdout.
+        // --verbose and --include-partial-messages enable token-level streaming.
         var arguments = ["-p", prompt,
                          "--no-chrome",
-                         "--output-format", "json",
+                         "--output-format", "stream-json",
+                         "--verbose",
+                         "--include-partial-messages",
                          "--permission-mode", mode.rawValue]
         if bare { arguments += ["--bare"] }
         if let model { arguments += ["--model", model] }
@@ -134,16 +138,54 @@ struct ClaudeCodeProvider: AgentProviding, Sendable {
         return AsyncThrowingStream { continuation in
             let task = Task { [self] in
                 do {
+                    // Buffer for incomplete NDJSON lines across stdout chunks.
+                    var lineBuffer = ""
+                    // Accumulate all text_delta content for the final result.
+                    var accumulatedResult = ""
+                    // Track the last result text from a "result" message.
+                    var resultText: String?
+
                     for try await event in processStream {
                         switch event {
-                        case .stdout:
-                            // Buffer stdout (JSON) — don't stream fragments
-                            break
+                        case .stdout(let data):
+                            guard let chunk = String(data: data, encoding: .utf8) else { break }
+                            lineBuffer += chunk
+
+                            // Split on newlines and process complete lines.
+                            while let newlineIndex = lineBuffer.firstIndex(of: "\n") {
+                                let line = String(lineBuffer[lineBuffer.startIndex..<newlineIndex])
+                                lineBuffer = String(lineBuffer[lineBuffer.index(after: newlineIndex)...])
+
+                                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                                guard !trimmed.isEmpty,
+                                      let lineData = trimmed.data(using: .utf8),
+                                      let json = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any]
+                                else { continue }
+
+                                // Extract text_delta events for streaming.
+                                if let type = json["type"] as? String, type == "stream_event",
+                                   let eventObj = json["event"] as? [String: Any],
+                                   let delta = eventObj["delta"] as? [String: Any],
+                                   let deltaType = delta["type"] as? String, deltaType == "text_delta",
+                                   let text = delta["text"] as? String
+                                {
+                                    accumulatedResult += text
+                                    continuation.yield(.output(text, .stdout))
+                                }
+
+                                // Capture the final result from a "result" message.
+                                if let type = json["type"] as? String, type == "result",
+                                   let result = json["result"] as? String
+                                {
+                                    resultText = result
+                                }
+                            }
+
                         case .stderr(let data):
-                            // Stream stderr (Claude Code progress output)
                             if let text = String(data: data, encoding: .utf8), !text.isEmpty {
                                 continuation.yield(.output(text, .stderr))
                             }
+
                         case .completed(let result):
                             guard result.exitCode == 0 else {
                                 let stderr = FileReader.readContents(at: result.stderrPath)
@@ -154,10 +196,12 @@ struct ClaudeCodeProvider: AgentProviding, Sendable {
                                 ))
                                 return
                             }
-                            let rawOutput = FileReader.readContents(at: result.stdoutPath)
-                            let text = try self.parseClaudeJSON(rawOutput)
+
+                            // Use the result from the "result" NDJSON message if available,
+                            // otherwise fall back to accumulated text_delta content.
+                            let finalText = resultText ?? accumulatedResult
                             continuation.yield(.completed(TaskOutput(
-                                output: text,
+                                output: finalText,
                                 exitStatus: Int(result.exitCode)
                             )))
                         }
