@@ -5,13 +5,14 @@ import Foundation
 @main
 struct EmbedDefaultsTool {
     static func main() throws {
-        guard CommandLine.arguments.count == 3 else {
-            fputs("Usage: EmbedDefaultsTool <defaults-dir> <output-file>\n", stderr)
+        guard CommandLine.arguments.count >= 3 else {
+            fputs("Usage: EmbedDefaultsTool <defaults-dir> <output-file> [<help-dir>]\n", stderr)
             exit(1)
         }
 
         let defaultsDir = CommandLine.arguments[1]
         let outputFile = CommandLine.arguments[2]
+        let helpDir = CommandLine.arguments.count > 3 ? CommandLine.arguments[3] : nil
         let fm = FileManager.default
 
         var entries: [(path: String, content: String)] = []
@@ -26,6 +27,18 @@ struct EmbedDefaultsTool {
             )
         }
 
+        // Embed help docs from Docs/Help/ under the "help/" prefix.
+        if let helpDir, fm.fileExists(atPath: helpDir) {
+            directories.insert("help")
+            try collectEntries(
+                in: helpDir,
+                relativeTo: helpDir,
+                entries: &entries,
+                directories: &directories,
+                pathPrefix: "help"
+            )
+        }
+
         let swift = generateSwift(entries: entries, directories: directories.sorted())
 
         let outputDir = URL(fileURLWithPath: outputFile).deletingLastPathComponent().path
@@ -37,14 +50,16 @@ struct EmbedDefaultsTool {
         in dir: String,
         relativeTo base: String,
         entries: inout [(path: String, content: String)],
-        directories: inout Set<String>
+        directories: inout Set<String>,
+        pathPrefix: String? = nil
     ) throws {
         let fm = FileManager.default
         let items = try fm.contentsOfDirectory(atPath: dir).sorted()
 
         for item in items where !item.hasPrefix(".") {
             let fullPath = URL(fileURLWithPath: dir).appendingPathComponent(item).path
-            let relativePath = String(fullPath.dropFirst(base.count + 1))
+            let rawRelativePath = String(fullPath.dropFirst(base.count + 1))
+            let relativePath = pathPrefix.map { "\($0)/\(rawRelativePath)" } ?? rawRelativePath
 
             var isDir: ObjCBool = false
             fm.fileExists(atPath: fullPath, isDirectory: &isDir)
@@ -55,7 +70,8 @@ struct EmbedDefaultsTool {
                     in: fullPath,
                     relativeTo: base,
                     entries: &entries,
-                    directories: &directories
+                    directories: &directories,
+                    pathPrefix: pathPrefix
                 )
             } else {
                 let content = try String(contentsOfFile: fullPath, encoding: .utf8)
