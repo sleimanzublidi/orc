@@ -493,7 +493,127 @@ output=$(assert_ok "start when-workflow (flag=yes)" "$ORC" start "$TMPDIR_ROOT/w
     pass "start when-workflow (flag=yes)"
 }
 
-# ── 19. Purge all (clean slate) ────────────────────────────────────
+# ── 19. Nested workflow ────────────────────────────────────────────
+
+section "Nested workflow"
+
+cat > "$TMPDIR_ROOT/child.yaml" <<'YAML'
+name: child
+description: Simple child workflow.
+input:
+  - name: message
+    type: string
+    required: true
+nodes:
+  - id: greet
+    agent: shell
+    prompt: "echo 'Hello from child: {{message}}'"
+    output: greeting
+output:
+  result: "{{greeting}}"
+YAML
+
+cat > "$TMPDIR_ROOT/parent.yaml" <<'YAML'
+name: parent
+description: Calls a child workflow.
+nodes:
+  - id: nest
+    workflow: CHILD_PATH
+    inputs:
+      message: "nested-test"
+    output: nested_out
+output:
+  result: "{{nested_out}}"
+YAML
+
+# Patch the parent to use the actual temp path.
+sed -i '' "s|CHILD_PATH|$TMPDIR_ROOT/child.yaml|" "$TMPDIR_ROOT/parent.yaml"
+
+output=$(assert_ok "validate parent (nested)" "$ORC" validate "$TMPDIR_ROOT/parent.yaml") && {
+    pass "validate parent (nested)"
+}
+
+output=$(assert_ok "start parent (nested)" "$ORC" start "$TMPDIR_ROOT/parent.yaml") && {
+    assert_contains "nested: child output" "$output" "Hello from child: nested-test" && pass "start parent (nested workflow)" || true
+}
+
+# Verify child run appears in list.
+output=$(assert_ok "list (nested child)" "$ORC" list) && {
+    assert_contains "list: child run" "$output" "child" && pass "list: child run visible" || true
+}
+
+# ── 20. Loop + workflow ───────────────────────────────────────────
+
+section "Loop + workflow"
+
+cat > "$TMPDIR_ROOT/loop-child.yaml" <<'YAML'
+name: loop-child
+description: Child for loop testing.
+input:
+  - name: iteration_input
+    type: string
+    required: false
+    default: "none"
+nodes:
+  - id: step
+    agent: shell
+    prompt: "echo 'iteration output'"
+    output: out
+output:
+  result: "{{out}}"
+YAML
+
+cat > "$TMPDIR_ROOT/loop-parent.yaml" <<'YAML'
+name: loop-parent
+description: Calls child in a loop.
+input:
+  - name: max
+    type: string
+    default: "2"
+nodes:
+  - id: iterate
+    workflow: LOOP_CHILD_PATH
+    inputs:
+      iteration_input: "{{last_output}}"
+    loop:
+      until: approved
+      max_iterations: "{{max}}"
+    output: result
+output:
+  result: "{{result}}"
+YAML
+
+# Patch the parent to use the actual temp path.
+sed -i '' "s|LOOP_CHILD_PATH|$TMPDIR_ROOT/loop-child.yaml|" "$TMPDIR_ROOT/loop-parent.yaml"
+
+output=$(assert_ok "validate loop-parent" "$ORC" validate "$TMPDIR_ROOT/loop-parent.yaml") && {
+    pass "validate loop-parent"
+}
+
+# The child never returns "approved", so this should fail after max_iterations.
+# The important thing is that child runs are actually created (not a no-op).
+output=$("$ORC" start "$TMPDIR_ROOT/loop-parent.yaml" --input "max=2" 2>&1) || true
+
+if echo "$output" | grep -qF "max iterations"; then
+    pass "start loop-parent: hit max iterations (expected)"
+elif echo "$output" | grep -qF "failed"; then
+    pass "start loop-parent: failed after iterations (expected)"
+else
+    fail "start loop-parent" "expected max iterations or failure, got: $(echo "$output" | head -3)"
+fi
+
+# Verify child runs were created — this is the core regression check.
+# Before the fix, loop+workflow created zero child runs.
+list_output=$(assert_ok "list (loop children)" "$ORC" list) || true
+child_count=$(echo "$list_output" | grep -c "loop-child" || true)
+
+if [ "$child_count" -ge 2 ]; then
+    pass "loop+workflow: $child_count child runs created"
+else
+    fail "loop+workflow: child runs" "expected >=2 child runs, found $child_count"
+fi
+
+# ── 22. Purge all (clean slate) ────────────────────────────────────
 
 section "Final cleanup"
 

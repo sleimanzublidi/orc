@@ -414,7 +414,16 @@ struct NodeDispatcher: Sendable {
             return (result.0, result.1, result.2, result.3, config.onFailure)
         }
 
-        // Handle loop nodes.
+        // Handle loop+workflow nodes: each iteration dispatches the child
+        // workflow's DAG instead of calling a provider.
+        if node.loop != nil && node.workflow != nil {
+            let result = await executeLoopWorkflowNode(
+                node: node, run: run, context: context, config: config
+            )
+            return (result.0, result.1, result.2, result.3, config.onFailure)
+        }
+
+        // Handle loop nodes (agent-based).
         if node.loop != nil {
             let result = await executeLoopNode(
                 node: node, run: run, context: context, config: config
@@ -422,7 +431,7 @@ struct NodeDispatcher: Sendable {
             return (result.0, result.1, result.2, result.3, config.onFailure)
         }
 
-        // Handle nested workflow nodes.
+        // Handle nested workflow nodes (single execution).
         if node.workflow != nil {
             let result = await executeNestedWorkflow(
                 node: node, run: run, context: context, config: config
@@ -724,6 +733,326 @@ struct NodeDispatcher: Sendable {
 
         onEvent(.nodeFailed(nodeID: node.id, runID: run.id, error: lastError?.localizedDescription ?? "unknown"))
         return (node.id, .failed, nil, lastError)
+    }
+
+    // MARK: - Loop + Workflow Execution
+
+    /// Executes a node that combines `loop:` and `workflow:`, running the child
+    /// workflow's full DAG on each iteration.
+    ///
+    /// The child workflow YAML is parsed and planned once. Each iteration resolves
+    /// the node's `inputs:` mapping against the current context (which includes
+    /// `{{last_output}}` from the previous iteration), creates a child run, and
+    /// dispatches the child DAG via a child `NodeDispatcher`. The evaluator is run
+    /// after each iteration to decide whether to stop.
+    ///
+    /// Outer retry logic wraps the entire loop (same behavior as `executeLoopNode`).
+    private func executeLoopWorkflowNode(
+        node: Models.Node,
+        run: Run,
+        context: TaskContext,
+        config: ResolvedNodeConfig
+    ) async -> (String, NodeStatus, String?, (any Error)?) {
+        guard let loopConfig = config.loop else {
+            let error = EngineError.invalidConfigValue(
+                node: node.id, field: "loop", value: "nil", expected: "loop configuration"
+            )
+            onEvent(.nodeFailed(nodeID: node.id, runID: run.id, error: error.localizedDescription))
+            return (node.id, .failed, nil, error)
+        }
+        guard let workflowFile = node.workflow else {
+            let error = EngineError.nestedWorkflowFailed(
+                nodeID: node.id, workflowFile: "nil", detail: "No workflow file specified"
+            )
+            onEvent(.nodeFailed(nodeID: node.id, runID: run.id, error: error.localizedDescription))
+            return (node.id, .failed, nil, error)
+        }
+
+        onEvent(.nodeStarted(nodeID: node.id, runID: run.id, agent: "nested-workflow"))
+
+        // Parse and plan the child workflow once — the definition doesn't change
+        // between iterations.
+        let childWorkflow: Workflow
+        do {
+            childWorkflow = try parser.parse(file: workflowFile)
+        } catch {
+            onEvent(.nodeFailed(nodeID: node.id, runID: run.id, error: error.localizedDescription))
+            return (node.id, .failed, nil, EngineError.nestedWorkflowFailed(
+                nodeID: node.id, workflowFile: workflowFile,
+                detail: "Parse failed: \(error)"
+            ))
+        }
+
+        let childPlan: ExecutionPlan
+        do {
+            let planner = ExecutionPlanner()
+            childPlan = try planner.plan(workflow: childWorkflow)
+        } catch {
+            onEvent(.nodeFailed(nodeID: node.id, runID: run.id, error: error.localizedDescription))
+            return (node.id, .failed, nil, EngineError.nestedWorkflowFailed(
+                nodeID: node.id, workflowFile: workflowFile,
+                detail: "Planning failed: \(error)"
+            ))
+        }
+
+        // Determine workspace path once.
+        let childWorkspacePath: String
+        let workspaceMode = config.workspaceMode ?? .shared
+        switch workspaceMode {
+        case .shared:
+            childWorkspacePath = run.workspacePath
+        case .isolated:
+            let nodeDir = (run.workspacePath as NSString)
+                .appendingPathComponent("nested")
+                .appendingPathComponent(node.id)
+            do {
+                try FileManager.default.createDirectory(
+                    atPath: nodeDir, withIntermediateDirectories: true
+                )
+            } catch {
+                onEvent(.nodeFailed(nodeID: node.id, runID: run.id, error: error.localizedDescription))
+                return (node.id, .failed, nil, EngineError.nestedWorkflowFailed(
+                    nodeID: node.id, workflowFile: workflowFile,
+                    detail: "Workspace creation failed: \(error)"
+                ))
+            }
+            childWorkspacePath = nodeDir
+        }
+
+        // Outer retry wrapping (same as executeLoopNode).
+        let maxAttempts = config.retry?.maxAttempts ?? 1
+        var lastError: (any Error)?
+
+        for attempt in 1...maxAttempts {
+            do {
+                let output = try await runWorkflowLoop(
+                    node: node, run: run, context: context,
+                    loopConfig: loopConfig,
+                    workflowFile: workflowFile,
+                    childWorkflow: childWorkflow,
+                    childPlan: childPlan,
+                    childWorkspacePath: childWorkspacePath
+                )
+                onEvent(.nodeCompleted(nodeID: node.id, runID: run.id, output: output))
+                return (node.id, .completed, output, nil)
+            } catch {
+                lastError = error
+                if attempt < maxAttempts {
+                    if let delay = config.retry?.delaySeconds, delay > 0 {
+                        try? await Task.sleep(nanoseconds: UInt64(delay) * 1_000_000_000)
+                    }
+                }
+            }
+        }
+
+        onEvent(.nodeFailed(nodeID: node.id, runID: run.id, error: lastError?.localizedDescription ?? "unknown"))
+        return (node.id, .failed, nil, lastError)
+    }
+
+    /// Runs the iteration loop for a loop+workflow node, returning the final output.
+    ///
+    /// Each iteration resolves inputs, creates a child run, dispatches the child
+    /// DAG, extracts output, and runs the evaluator.
+    private func runWorkflowLoop(
+        node: Models.Node,
+        run: Run,
+        context: TaskContext,
+        loopConfig: ResolvedLoopConfig,
+        workflowFile: String,
+        childWorkflow: Workflow,
+        childPlan: ExecutionPlan,
+        childWorkspacePath: String
+    ) async throws -> String {
+        var lastOutput = ""
+        var previousOutput: String? = nil
+        let maxIterations = loopConfig.maxIterations
+
+        // Seed last_output so {{last_output}} resolves on the first iteration
+        // (matches LoopHandler behavior for agent-based loops).
+        var initialOutputs = context.outputs
+        if initialOutputs["last_output"] == nil {
+            initialOutputs["last_output"] = ""
+        }
+        var currentContext = TaskContext(
+            inputs: context.inputs,
+            outputs: initialOutputs,
+            nodeStatuses: context.nodeStatuses,
+            repoRoot: context.repoRoot,
+            workspacePath: context.workspacePath,
+            environment: context.environment
+        )
+
+        for iteration in 1...maxIterations {
+            try Task.checkCancellation()
+
+            logger.info("[\(node.id)] iteration \(iteration)/\(maxIterations)...")
+
+            // Resolve inputs against current context (includes {{last_output}}).
+            var childInputs: [String: String] = [:]
+            if let inputMappings = node.inputs {
+                for (key, template) in inputMappings {
+                    childInputs[key] = try templateResolver.resolve(
+                        template: template, context: currentContext
+                    )
+                }
+            }
+
+            // Validate required inputs.
+            for childInput in childWorkflow.input {
+                if childInput.required && childInput.defaultValue == nil
+                    && childInputs[childInput.name] == nil
+                {
+                    throw EngineError.missingRequiredInput(
+                        name: childInput.name, workflow: childWorkflow.name
+                    )
+                }
+            }
+
+            // Record iteration in the parent's execution log.
+            let execID = UUID().uuidString
+            let execution = NodeExecution(
+                id: execID,
+                runID: run.id,
+                nodeID: node.id,
+                status: .running,
+                agent: "nested-workflow",
+                attempt: 1,
+                iteration: iteration,
+                startedAt: Date()
+            )
+            _ = try await store.createNodeExecution(execution)
+
+            // Create a child run for this iteration.
+            let childRunTemplate = Run(
+                id: "",
+                workflowName: childWorkflow.name,
+                workflowFile: workflowFile,
+                status: .running,
+                workspacePath: childWorkspacePath,
+                inputs: childInputs
+            )
+            let childRun = try await store.createRun(childRunTemplate)
+
+            // Create a child dispatcher sharing the same infrastructure.
+            let childDispatcher = NodeDispatcher(
+                plan: childPlan,
+                providers: providers,
+                store: store,
+                parser: parser,
+                templateResolver: templateResolver,
+                expressionEvaluator: expressionEvaluator,
+                evaluatorRunner: evaluatorRunner,
+                interactiveHandler: interactiveHandler,
+                loopHandler: loopHandler,
+                maxParallelNodes: maxParallelNodes,
+                repoRoot: repoRoot,
+                environment: environment,
+                onEvent: onEvent
+            )
+
+            // Execute the child workflow.
+            let childResult = try await childDispatcher.execute(
+                run: childRun,
+                inputs: childInputs
+            )
+
+            // Handle child failure.
+            if childResult.status == .failed {
+                var childErrorDetail = "Child workflow failed"
+                if let childExecs = try? await store.getNodeExecutions(
+                    runID: childRun.id, nodeID: nil
+                ) {
+                    let failedNodes = childExecs.filter { $0.status == .failed }
+                    let errorMessages = failedNodes.compactMap { exec -> String? in
+                        guard let error = exec.error else { return nil }
+                        return "[\(exec.nodeID)] \(error)"
+                    }
+                    if !errorMessages.isEmpty {
+                        childErrorDetail = errorMessages.joined(separator: "; ")
+                    }
+                }
+                try await store.updateNodeExecution(
+                    id: execID, status: .failed, output: nil, error: childErrorDetail
+                )
+                throw EngineError.nestedWorkflowFailed(
+                    nodeID: node.id, workflowFile: workflowFile,
+                    detail: childErrorDetail
+                )
+            }
+
+            // Extract child output.
+            let childOutput: String
+            if let runOutput = childResult.output {
+                childOutput = runOutput
+            } else {
+                let childExecs = (try? await store.getNodeExecutions(
+                    runID: childRun.id, nodeID: nil
+                )) ?? []
+                let lastCompleted = childExecs
+                    .filter { $0.status == .completed && $0.output != nil }
+                    .sorted { ($0.completedAt ?? .distantPast) < ($1.completedAt ?? .distantPast) }
+                    .last
+                childOutput = lastCompleted?.output ?? ""
+            }
+
+            lastOutput = childOutput
+
+            // Record iteration success.
+            try await store.updateNodeExecution(
+                id: execID, status: .completed, output: lastOutput, error: nil
+            )
+
+            // Run the evaluator.
+            var evalOutputs = currentContext.outputs
+            evalOutputs["last_output"] = lastOutput
+            if let prev = previousOutput {
+                evalOutputs["_previous_iteration_output"] = prev
+            }
+            let evalContext = TaskContext(
+                inputs: currentContext.inputs,
+                outputs: evalOutputs,
+                nodeStatuses: currentContext.nodeStatuses,
+                repoRoot: currentContext.repoRoot,
+                workspacePath: currentContext.workspacePath,
+                environment: currentContext.environment
+            )
+
+            let shouldStop: Bool
+            do {
+                shouldStop = try await evaluatorRunner.evaluate(
+                    name: loopConfig.until,
+                    lastOutput: lastOutput,
+                    context: evalContext
+                )
+            } catch {
+                throw EngineError.evaluatorFailed(
+                    name: loopConfig.until,
+                    detail: error.localizedDescription
+                )
+            }
+
+            let evalResult = shouldStop ? "stopped" : "continuing"
+            logger.info("[\(node.id)] iteration \(iteration) → \(evalResult)")
+
+            if shouldStop {
+                return lastOutput
+            }
+
+            // Prepare for next iteration.
+            previousOutput = lastOutput
+            var nextOutputs = currentContext.outputs
+            nextOutputs["last_output"] = lastOutput
+            currentContext = TaskContext(
+                inputs: currentContext.inputs,
+                outputs: nextOutputs,
+                nodeStatuses: currentContext.nodeStatuses,
+                repoRoot: currentContext.repoRoot,
+                workspacePath: currentContext.workspacePath,
+                environment: currentContext.environment
+            )
+        }
+
+        throw EngineError.maxIterationsReached(nodeID: node.id, count: maxIterations)
     }
 
     // MARK: - Nested Workflow Execution

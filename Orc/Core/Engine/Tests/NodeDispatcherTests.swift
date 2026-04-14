@@ -1060,4 +1060,299 @@ struct NodeDispatcherTests {
         // {{orc_root}} resolves to repoRoot + "/.orc", and repoRoot is "/tmp/repo" in makeDispatcher.
         #expect(fakeProvider.executedPrompts.last == "Save to /tmp/repo/.orc/reports/")
     }
+
+    // MARK: - Loop + Workflow
+
+    @Test("Loop+workflow: each iteration dispatches child workflow DAG")
+    func loopWorkflowBasicExecution() async throws {
+        let fakeProvider = FakeAgentProvider(name: "fake")
+        // The child workflow's "greet" node will use this provider.
+        // Return "approved" on the first iteration so the loop stops after one.
+        fakeProvider.defaultOutput = "approved"
+        let store = FakeWorkflowStore()
+
+        // The child workflow returned by the fake parser.
+        let childWorkflow = Workflow(
+            name: "child",
+            nodes: [
+                Models.Node(id: "greet", agent: .literal("fake"), prompt: "hello", output: "greeting")
+            ],
+            output: ["result": "{{greeting}}"]
+        )
+        var parser = FakeWorkflowParser()
+        parser.workflowsByFile["child.yaml"] = childWorkflow
+
+        // Parent node has both loop: and workflow:.
+        let parentNode = Models.Node(
+            id: "iterate",
+            loop: LoopConfig(until: "approved", maxIterations: .literal(3)),
+            workflow: "child.yaml",
+            inputs: ["message": "hello"]
+        )
+
+        let (dispatcher, _, run) = try makeDispatcher(
+            nodes: [parentNode], fakeProvider: fakeProvider,
+            store: store, parser: parser
+        )
+        _ = try await store.createRun(run)
+
+        let result = try await dispatcher.execute(run: run, inputs: [:])
+        #expect(result.status == .completed)
+
+        // The child workflow's agent should have been called.
+        #expect(fakeProvider.executedPrompts.count == 1)
+        #expect(fakeProvider.executedPrompts[0] == "hello")
+
+        // A child run should have been created in the store.
+        let allRuns = try await store.listRuns(status: nil)
+        // Parent run + 1 child run = 2 total.
+        #expect(allRuns.count == 2)
+        let childRuns = allRuns.filter { $0.workflowName == "child" }
+        #expect(childRuns.count == 1)
+    }
+
+    @Test("Loop+workflow: evaluator stops loop when child output matches")
+    func loopWorkflowEvaluatorStops() async throws {
+        // Return "working" for the first two iterations, "approved" on the third.
+        let countingProvider = CountingFakeProvider(
+            name: "fake",
+            outputs: ["working", "working", "approved"]
+        )
+        let store = FakeWorkflowStore()
+
+        let childWorkflow = Workflow(
+            name: "child",
+            nodes: [
+                Models.Node(id: "step", agent: .literal("fake"), prompt: "do work", output: "out")
+            ],
+            output: ["result": "{{out}}"]
+        )
+        var parser = FakeWorkflowParser()
+        parser.workflowsByFile["child.yaml"] = childWorkflow
+
+        let parentNode = Models.Node(
+            id: "iterate",
+            loop: LoopConfig(until: "approved", maxIterations: .literal(5)),
+            workflow: "child.yaml"
+        )
+
+        let registry = ProviderRegistry(providers: [countingProvider])
+        let resolver = TemplateResolver()
+
+        let evaluatorRunner = EvaluatorRunner(
+            providers: registry,
+            store: store,
+            templateResolver: resolver,
+            processRunner: FakeProcessRunner(),
+            basePath: "/tmp/test-orc"
+        )
+
+        let workflow = Workflow(name: "parent", nodes: [parentNode])
+        let plan = try ExecutionPlanner().plan(workflow: workflow)
+
+        let dispatcher = NodeDispatcher(
+            plan: plan,
+            providers: registry,
+            store: store,
+            parser: parser,
+            templateResolver: resolver,
+            expressionEvaluator: ExpressionEvaluator(),
+            evaluatorRunner: evaluatorRunner,
+            interactiveHandler: InteractiveHandler(
+                store: store, providers: registry,
+                tmux: FakeTmuxProvider(), templateResolver: resolver
+            ),
+            loopHandler: LoopHandler(
+                providers: registry, store: store,
+                evaluatorRunner: evaluatorRunner,
+                templateResolver: resolver, tmux: FakeTmuxProvider()
+            ),
+            maxParallelNodes: 4,
+            repoRoot: "/tmp/repo",
+            environment: [:]
+        )
+
+        let run = Run(
+            id: "test-run", workflowName: "parent",
+            workflowFile: "/tmp/parent.yml", status: .running,
+            workspacePath: "/tmp/workspace"
+        )
+        _ = try await store.createRun(run)
+
+        let result = try await dispatcher.execute(run: run, inputs: [:])
+        #expect(result.status == .completed)
+
+        // Should have run 3 iterations (third returned "approved").
+        #expect(countingProvider.callCount == 3)
+
+        // 3 child runs should have been created.
+        let childRuns = try await store.listRuns(status: nil)
+        let childWorkflowRuns = childRuns.filter { $0.workflowName == "child" }
+        #expect(childWorkflowRuns.count == 3)
+    }
+
+    @Test("Loop+workflow: throws maxIterationsReached when limit hit")
+    func loopWorkflowMaxIterations() async throws {
+        let fakeProvider = FakeAgentProvider(name: "fake")
+        // Never return an approved output — loop should exhaust.
+        fakeProvider.defaultOutput = "not-approved"
+        let store = FakeWorkflowStore()
+
+        let childWorkflow = Workflow(
+            name: "child",
+            nodes: [
+                Models.Node(id: "step", agent: .literal("fake"), prompt: "work", output: "out")
+            ],
+            output: ["result": "{{out}}"]
+        )
+        var parser = FakeWorkflowParser()
+        parser.workflowsByFile["child.yaml"] = childWorkflow
+
+        let parentNode = Models.Node(
+            id: "iterate",
+            loop: LoopConfig(until: "approved", maxIterations: .literal(2)),
+            workflow: "child.yaml"
+        )
+
+        let (dispatcher, _, run) = try makeDispatcher(
+            nodes: [parentNode], fakeProvider: fakeProvider,
+            store: store, parser: parser
+        )
+        _ = try await store.createRun(run)
+
+        let result = try await dispatcher.execute(run: run, inputs: [:])
+        // maxIterationsReached causes node failure, which causes run failure.
+        #expect(result.status == .failed)
+
+        // Should have executed exactly 2 child workflows.
+        let childRuns = try await store.listRuns(status: nil)
+        let childWorkflowRuns = childRuns.filter { $0.workflowName == "child" }
+        #expect(childWorkflowRuns.count == 2)
+    }
+
+    @Test("Loop+workflow: child failure propagates to parent")
+    func loopWorkflowChildFailure() async throws {
+        let fakeProvider = FakeAgentProvider(name: "fake")
+        fakeProvider.errorToThrow = EngineError.nodeExecutionFailed(
+            nodeID: "step", detail: "simulated failure"
+        )
+        let store = FakeWorkflowStore()
+
+        let childWorkflow = Workflow(
+            name: "child",
+            nodes: [
+                Models.Node(id: "step", agent: .literal("fake"), prompt: "work", output: "out")
+            ]
+        )
+        var parser = FakeWorkflowParser()
+        parser.workflowsByFile["child.yaml"] = childWorkflow
+
+        let parentNode = Models.Node(
+            id: "iterate",
+            loop: LoopConfig(until: "approved", maxIterations: .literal(3)),
+            workflow: "child.yaml"
+        )
+
+        let (dispatcher, _, run) = try makeDispatcher(
+            nodes: [parentNode], fakeProvider: fakeProvider,
+            store: store, parser: parser
+        )
+        _ = try await store.createRun(run)
+
+        let result = try await dispatcher.execute(run: run, inputs: [:])
+        #expect(result.status == .failed)
+
+        // Only 1 child run — loop stops on first failure.
+        let childRuns = try await store.listRuns(status: nil)
+        let childWorkflowRuns = childRuns.filter { $0.workflowName == "child" }
+        #expect(childWorkflowRuns.count == 1)
+    }
+
+    @Test("Loop+workflow: last_output propagates between iterations")
+    func loopWorkflowLastOutputPropagation() async throws {
+        // First iteration returns "iteration-1-output", second returns "approved".
+        let countingProvider = CountingFakeProvider(
+            name: "fake",
+            outputs: ["iteration-1-output", "approved"]
+        )
+        let store = FakeWorkflowStore()
+
+        let childWorkflow = Workflow(
+            name: "child",
+            input: [WorkflowInput(name: "context", type: "string", required: false)],
+            nodes: [
+                Models.Node(id: "step", agent: .literal("fake"), prompt: "work", output: "out")
+            ],
+            output: ["result": "{{out}}"]
+        )
+        var parser = FakeWorkflowParser()
+        parser.workflowsByFile["child.yaml"] = childWorkflow
+
+        // The parent node passes {{last_output}} as an input to the child.
+        let parentNode = Models.Node(
+            id: "iterate",
+            loop: LoopConfig(until: "approved", maxIterations: .literal(5)),
+            workflow: "child.yaml",
+            inputs: ["context": "{{last_output}}"]
+        )
+
+        let registry = ProviderRegistry(providers: [countingProvider])
+        let resolver = TemplateResolver()
+
+        let evaluatorRunner = EvaluatorRunner(
+            providers: registry,
+            store: store,
+            templateResolver: resolver,
+            processRunner: FakeProcessRunner(),
+            basePath: "/tmp/test-orc"
+        )
+
+        let workflow = Workflow(name: "parent", nodes: [parentNode])
+        let plan = try ExecutionPlanner().plan(workflow: workflow)
+
+        let dispatcher = NodeDispatcher(
+            plan: plan,
+            providers: registry,
+            store: store,
+            parser: parser,
+            templateResolver: resolver,
+            expressionEvaluator: ExpressionEvaluator(),
+            evaluatorRunner: evaluatorRunner,
+            interactiveHandler: InteractiveHandler(
+                store: store, providers: registry,
+                tmux: FakeTmuxProvider(), templateResolver: resolver
+            ),
+            loopHandler: LoopHandler(
+                providers: registry, store: store,
+                evaluatorRunner: evaluatorRunner,
+                templateResolver: resolver, tmux: FakeTmuxProvider()
+            ),
+            maxParallelNodes: 4,
+            repoRoot: "/tmp/repo",
+            environment: [:]
+        )
+
+        let run = Run(
+            id: "test-run", workflowName: "parent",
+            workflowFile: "/tmp/parent.yml", status: .running,
+            workspacePath: "/tmp/workspace"
+        )
+        _ = try await store.createRun(run)
+
+        let result = try await dispatcher.execute(run: run, inputs: [:])
+        #expect(result.status == .completed)
+        #expect(countingProvider.callCount == 2)
+
+        // The second child run should have received the first iteration's output
+        // as the "context" input via {{last_output}}.
+        let childRuns = try await store.listRuns(status: nil)
+        let childWorkflowRuns = childRuns.filter { $0.workflowName == "child" }
+        #expect(childWorkflowRuns.count == 2)
+
+        // Second child run should have the first iteration's output as its
+        // context input. The child workflow's output mapping ("result: {{out}}")
+        // formats the value with the key prefix.
+        let secondChildRun = childWorkflowRuns[1]
+        #expect(secondChildRun.inputs?["context"] == "result: iteration-1-output")
+    }
 }

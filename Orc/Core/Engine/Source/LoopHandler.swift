@@ -77,9 +77,22 @@ struct LoopHandler: Sendable {
 
         var lastOutput = ""
         var previousOutput: String? = nil
-        var currentContext = context
-
         let maxIterations = loopConfig.maxIterations
+
+        // Seed last_output so {{last_output}} resolves on the first iteration.
+        var initialOutputs = context.outputs
+        if initialOutputs["last_output"] == nil {
+            initialOutputs["last_output"] = ""
+        }
+        var currentContext = TaskContext(
+            inputs: context.inputs,
+            outputs: initialOutputs,
+            nodeStatuses: context.nodeStatuses,
+            repoRoot: context.repoRoot,
+            workspacePath: context.workspacePath,
+            environment: context.environment
+        )
+
         for iteration in 1...maxIterations {
             // Check for task cancellation before each iteration.
             try Task.checkCancellation()
