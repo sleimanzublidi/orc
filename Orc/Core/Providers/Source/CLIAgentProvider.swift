@@ -74,7 +74,7 @@ struct CLIAgentProvider: AgentProviding, Sendable {
             )
         }
 
-        return TaskOutput(output: output, exitStatus: Int(result.exitCode))
+        return TaskOutput(output: output, exitStatus: Int(result.exitCode), stdoutPath: stdoutPath, stderrPath: stderrPath)
     }
 
     func executeStreaming(
@@ -130,7 +130,9 @@ struct CLIAgentProvider: AgentProviding, Sendable {
                             }
                             continuation.yield(.completed(TaskOutput(
                                 output: output,
-                                exitStatus: Int(result.exitCode)
+                                exitStatus: Int(result.exitCode),
+                                stdoutPath: result.stdoutPath,
+                                stderrPath: result.stderrPath
                             )))
                         }
                     }

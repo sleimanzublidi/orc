@@ -85,6 +85,7 @@ actor WorkflowStore: WorkflowStoring {
             inputs: run.inputs,
             output: run.output,
             cleanupPolicy: run.cleanupPolicy,
+            parentRunID: run.parentRunID,
             createdAt: run.createdAt,
             updatedAt: run.updatedAt
         )
@@ -124,6 +125,7 @@ actor WorkflowStore: WorkflowStoring {
                     inputs: run.inputs,
                     output: run.output,
                     cleanupPolicy: run.cleanupPolicy,
+                    parentRunID: run.parentRunID,
                     createdAt: run.createdAt,
                     updatedAt: Date()
                 )
@@ -151,6 +153,7 @@ actor WorkflowStore: WorkflowStoring {
                     inputs: run.inputs,
                     output: run.output,
                     cleanupPolicy: run.cleanupPolicy,
+                    parentRunID: run.parentRunID,
                     createdAt: run.createdAt,
                     updatedAt: Date()
                 )
@@ -178,6 +181,7 @@ actor WorkflowStore: WorkflowStoring {
                     inputs: run.inputs,
                     output: output,
                     cleanupPolicy: run.cleanupPolicy,
+                    parentRunID: run.parentRunID,
                     createdAt: run.createdAt,
                     updatedAt: Date()
                 )
@@ -190,19 +194,19 @@ actor WorkflowStore: WorkflowStoring {
         }
     }
 
-    func listRuns(status: RunStatus?) async throws -> [Run] {
+    func listRuns(status: RunStatus?, topLevelOnly: Bool = false) async throws -> [Run] {
         do {
             return try await db.read { db in
+                var request = Run.all()
                 if let status = status {
-                    return try Run
-                        .filter(Column("status") == status.rawValue)
-                        .order(Column("created_at").desc)
-                        .fetchAll(db)
-                } else {
-                    return try Run
-                        .order(Column("created_at").desc)
-                        .fetchAll(db)
+                    request = request.filter(Column("status") == status.rawValue)
                 }
+                if topLevelOnly {
+                    request = request.filter(Column("parent_run_id") == nil)
+                }
+                return try request
+                    .order(Column("created_at").desc)
+                    .fetchAll(db)
             }
         } catch {
             throw StoreError.internalError(detail: "Failed to list runs: \(error.localizedDescription)")

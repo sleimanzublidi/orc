@@ -97,7 +97,7 @@ final class PollingEventSource: EventProviding, Sendable {
 
     private func initializeSnapshot() async {
         do {
-            let runs = try await engine.listRuns(status: nil)
+            let runs = try await engine.listRuns(status: nil, topLevelOnly: false)
             let filtered = filterRuns(runs)
             for run in filtered {
                 await store.initRun(run)
@@ -117,7 +117,7 @@ final class PollingEventSource: EventProviding, Sendable {
     private func pollForChanges() async -> [MonitorEvent] {
         var events: [MonitorEvent] = []
         do {
-            let runs = try await engine.listRuns(status: nil)
+            let runs = try await engine.listRuns(status: nil, topLevelOnly: false)
             let filtered = filterRuns(runs)
 
             let snap = await store.snapshot()

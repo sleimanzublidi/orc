@@ -61,6 +61,12 @@ internal struct MigrationManager {
             }
         }
 
+        migrator.registerMigration("v2") { db in
+            try db.alter(table: "runs") { t in
+                t.add(column: "parent_run_id", .text).references("runs", onDelete: .cascade)
+            }
+        }
+
         do {
             try migrator.migrate(dbWriter)
         } catch {

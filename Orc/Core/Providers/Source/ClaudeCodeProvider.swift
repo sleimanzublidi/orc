@@ -93,7 +93,7 @@ struct ClaudeCodeProvider: AgentProviding, Sendable {
         let rawOutput = FileReader.readContents(at: stdoutPath)
         let text = try parseClaudeJSON(rawOutput)
 
-        return TaskOutput(output: text, exitStatus: Int(result.exitCode))
+        return TaskOutput(output: text, exitStatus: Int(result.exitCode), stdoutPath: stdoutPath, stderrPath: stderrPath)
     }
 
     func executeStreaming(
@@ -202,7 +202,9 @@ struct ClaudeCodeProvider: AgentProviding, Sendable {
                             let finalText = resultText ?? accumulatedResult
                             continuation.yield(.completed(TaskOutput(
                                 output: finalText,
-                                exitStatus: Int(result.exitCode)
+                                exitStatus: Int(result.exitCode),
+                                stdoutPath: result.stdoutPath,
+                                stderrPath: result.stderrPath
                             )))
                         }
                     }

@@ -13,7 +13,7 @@ struct ListCommandTests {
     func noFilter() async throws {
         let mock = MockEngine()
         var receivedStatus: RunStatus?? = .none
-        mock.listRunsHandler = { status in
+        mock.listRunsHandler = { status, _ in
             receivedStatus = .some(status)
             return []
         }
@@ -29,7 +29,7 @@ struct ListCommandTests {
     func withStatusFilter() async throws {
         let mock = MockEngine()
         var receivedStatus: RunStatus?
-        mock.listRunsHandler = { status in
+        mock.listRunsHandler = { status, _ in
             receivedStatus = status
             return [TestFixtures.makeRun(status: .completed)]
         }
@@ -43,7 +43,7 @@ struct ListCommandTests {
     @Test("throws ExitCode on invalid status string")
     func invalidStatus() async throws {
         let mock = MockEngine()
-        mock.listRunsHandler = { _ in [] }
+        mock.listRunsHandler = { _, _ in [] }
 
         let cmd = try ListCommand.parseAsRoot(["--status", "bogus"]) as! ListCommand
 
@@ -55,7 +55,7 @@ struct ListCommandTests {
     @Test("handles empty run list without error")
     func emptyRunList() async throws {
         let mock = MockEngine()
-        mock.listRunsHandler = { _ in [] }
+        mock.listRunsHandler = { _, _ in [] }
 
         let cmd = try ListCommand.parseAsRoot([]) as! ListCommand
         try await cmd.execute(engine: mock)
@@ -64,7 +64,7 @@ struct ListCommandTests {
     @Test("handles non-empty run list without error")
     func nonEmptyRunList() async throws {
         let mock = MockEngine()
-        mock.listRunsHandler = { _ in
+        mock.listRunsHandler = { _, _ in
             [
                 TestFixtures.makeRun(id: "run-1", workflowName: "deploy", status: .completed),
                 TestFixtures.makeRun(id: "run-2", workflowName: "test", status: .running),

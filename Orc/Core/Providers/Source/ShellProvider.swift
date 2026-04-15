@@ -63,7 +63,7 @@ struct ShellProvider: AgentProviding, Sendable {
             )
         }
 
-        return TaskOutput(output: output, exitStatus: Int(result.exitCode))
+        return TaskOutput(output: output, exitStatus: Int(result.exitCode), stdoutPath: stdoutPath, stderrPath: stderrPath)
     }
 
     func executeStreaming(
@@ -118,7 +118,9 @@ struct ShellProvider: AgentProviding, Sendable {
                             }
                             continuation.yield(.completed(TaskOutput(
                                 output: output,
-                                exitStatus: Int(exitCode)
+                                exitStatus: Int(exitCode),
+                                stdoutPath: result.stdoutPath,
+                                stderrPath: result.stderrPath
                             )))
                         }
                     }

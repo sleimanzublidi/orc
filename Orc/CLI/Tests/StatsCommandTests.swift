@@ -12,7 +12,7 @@ struct StatsCommandTests {
     @Test("handles empty runs and stats")
     func handlesEmptyRunsAndStats() async throws {
         let mock = MockEngine()
-        mock.listRunsHandler = { _ in [] }
+        mock.listRunsHandler = { _, _ in [] }
         mock.getStatsHandler = { [] }
 
         let cmd = try StatsCommand.parseAsRoot([]) as! StatsCommand
@@ -22,7 +22,7 @@ struct StatsCommandTests {
     @Test("handles runs grouped by status")
     func handlesRunsGroupedByStatus() async throws {
         let mock = MockEngine()
-        mock.listRunsHandler = { _ in
+        mock.listRunsHandler = { _, _ in
             [
                 TestFixtures.makeRun(id: "run1", status: .completed),
                 TestFixtures.makeRun(id: "run2", status: .completed),
@@ -40,7 +40,7 @@ struct StatsCommandTests {
     @Test("shows recent runs table from stats")
     func showsRecentRunsTable() async throws {
         let mock = MockEngine()
-        mock.listRunsHandler = { _ in
+        mock.listRunsHandler = { _, _ in
             [TestFixtures.makeRun(id: "run1", status: .completed)]
         }
         mock.getStatsHandler = {
@@ -72,7 +72,7 @@ struct StatsCommandTests {
     @Test("handles stats with nil duration")
     func handlesStatsWithNilDuration() async throws {
         let mock = MockEngine()
-        mock.listRunsHandler = { _ in [] }
+        mock.listRunsHandler = { _, _ in [] }
         mock.getStatsHandler = {
             [
                 TestFixtures.makeRunStats(
@@ -94,7 +94,7 @@ struct StatsCommandTests {
     func usesEngineBasePath() async throws {
         let mock = MockEngine()
         mock.basePath = "/custom/path/.orc"
-        mock.listRunsHandler = { _ in [] }
+        mock.listRunsHandler = { _, _ in [] }
         mock.getStatsHandler = { [] }
 
         let cmd = try StatsCommand.parseAsRoot([]) as! StatsCommand
@@ -106,7 +106,7 @@ struct StatsCommandTests {
     @Test("throws ExitCode.failure when engine throws")
     func engineErrorThrowsFailure() async {
         let mock = MockEngine()
-        mock.listRunsHandler = { _ in
+        mock.listRunsHandler = { _, _ in
             throw EngineError.runNotFound(id: "any")
         }
         mock.getStatsHandler = { [] }

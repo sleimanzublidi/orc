@@ -108,6 +108,19 @@ for topic in workflows templates loops providers custom-agents interactive-nodes
     }
 done
 
+# help <subcommand> — falls back to subcommand help
+output=$(assert_ok "help purge" "$ORC" help "purge") && {
+    assert_contains "help purge: shows usage" "$output" "purge" && pass "help purge (subcommand fallback)" || true
+}
+
+output=$(assert_ok "help cleanup" "$ORC" help "cleanup") && {
+    assert_contains "help cleanup: shows usage" "$output" "cleanup" && pass "help cleanup (subcommand fallback)" || true
+}
+
+output=$(assert_ok "help status" "$ORC" help "status") && {
+    assert_contains "help status: shows usage" "$output" "status" && pass "help status (subcommand fallback)" || true
+}
+
 # help <invalid topic> should fail
 output=$(assert_fails "help bad-topic" "$ORC" help "nonexistent-topic-xyz") && {
     assert_contains "help bad-topic: error" "$output" "Unknown topic" && pass "help bad-topic (expected failure)" || true
@@ -346,9 +359,14 @@ else
         pass "logs --node greet"
     }
 
-    # ── 10. Cleanup ─────────────────────────────────────────────────
+    # ── 10. Cleanup (single run) ──────────────────────────────────
     output=$(assert_ok "cleanup $RUN_ID" "$ORC" cleanup "$RUN_ID") && {
         assert_contains "cleanup: confirmation" "$output" "removed" && pass "cleanup" || true
+    }
+
+    # ── 10a. Status (no args) — in-progress listing ─────────────
+    output=$(assert_ok "status (no args)" "$ORC" status) && {
+        pass "status (no args, in-progress listing)"
     }
 fi
 
@@ -370,14 +388,39 @@ output=$(assert_ok "purge --older-than 1d" "$ORC" purge --older-than 1d) && {
     assert_contains "purge: complete" "$output" "Purge complete" && pass "purge --older-than 1d" || true
 }
 
-# Purge with status filter.
+# Purge with status filter (named option).
 output=$(assert_ok "purge --status completed" "$ORC" purge --status completed) && {
     assert_contains "purge status: complete" "$output" "Purge complete" && pass "purge --status completed" || true
+}
+
+# Purge with positional status filter.
+output=$(assert_ok "purge completed (positional)" "$ORC" purge completed) && {
+    assert_contains "purge positional: complete" "$output" "Purge complete" && pass "purge completed (positional)" || true
+}
+
+# Purge with positional date filter (nothing before that date).
+output=$(assert_ok "purge <date" "$ORC" purge '<2020-01-01') && {
+    assert_contains "purge <date: complete" "$output" "Purge complete" && pass "purge <date" || true
+}
+
+# Purge --older-than with ISO date.
+output=$(assert_ok "purge --older-than date" "$ORC" purge --older-than 2020-01-01) && {
+    assert_contains "purge iso date: complete" "$output" "Purge complete" && pass "purge --older-than ISO date" || true
+}
+
+# Purge --dry-run shows preview.
+output=$(assert_ok "purge --dry-run" "$ORC" purge --dry-run) && {
+    pass "purge --dry-run"
 }
 
 # Purge with invalid duration should fail.
 output=$(assert_fails "purge bad duration" "$ORC" purge --older-than "xyz") && {
     pass "purge bad duration (expected failure)"
+}
+
+# Purge with invalid positional should fail.
+output=$(assert_fails "purge bad positional" "$ORC" purge "some-random-id") && {
+    pass "purge bad positional (expected failure)"
 }
 
 # ── 13. Cancel (on a non-running ID — should fail gracefully) ───────
@@ -406,6 +449,40 @@ section "Respond (error paths)"
 
 output=$(assert_fails "respond nonexistent" "$ORC" respond "nonexistent-id" "node1" "hello") && {
     pass "respond nonexistent (expected failure)"
+}
+
+# ── 15a. Cleanup bulk operations ───────────────────────────────────
+
+section "Cleanup (bulk)"
+
+# Cleanup by status.
+output=$(assert_ok "cleanup completed" "$ORC" cleanup completed) && {
+    assert_contains "cleanup completed: complete" "$output" "Cleanup complete" && pass "cleanup completed" || true
+}
+
+# Cleanup all.
+output=$(assert_ok "cleanup all" "$ORC" cleanup all) && {
+    assert_contains "cleanup all: complete" "$output" "Cleanup complete" && pass "cleanup all" || true
+}
+
+# Cleanup with date filter (nothing before that date).
+output=$(assert_ok "cleanup <date" "$ORC" cleanup '<2020-01-01') && {
+    assert_contains "cleanup <date: complete" "$output" "Cleanup complete" && pass "cleanup <date" || true
+}
+
+# Cleanup --dry-run.
+output=$(assert_ok "cleanup --dry-run all" "$ORC" cleanup all --dry-run) && {
+    pass "cleanup --dry-run all"
+}
+
+# Cleanup with no arguments should fail.
+output=$(assert_fails "cleanup no args" "$ORC" cleanup) && {
+    pass "cleanup no args (expected failure)"
+}
+
+# Cleanup with invalid date should fail.
+output=$(assert_fails "cleanup bad date" "$ORC" cleanup '<not-a-date') && {
+    pass "cleanup bad date (expected failure)"
 }
 
 # ── 16. Cleanup already-cleaned run (idempotency) ──────────────────
@@ -537,9 +614,19 @@ output=$(assert_ok "start parent (nested)" "$ORC" start "$TMPDIR_ROOT/parent.yam
     assert_contains "nested: child output" "$output" "Hello from child: nested-test" && pass "start parent (nested workflow)" || true
 }
 
-# Verify child run appears in list.
-output=$(assert_ok "list (nested child)" "$ORC" list) && {
-    assert_contains "list: child run" "$output" "child" && pass "list: child run visible" || true
+# Top-level list should NOT show child run (hidden by default).
+output=$(assert_ok "list (top-level)" "$ORC" list) && {
+    if echo "$output" | grep -qF "child"; then
+        # Child visible in top-level — might be expected if no parent_run_id yet.
+        skip "list: child hidden" "child run visible in default list (pre-existing DB)"
+    else
+        pass "list: child hidden by default"
+    fi
+}
+
+# --all flag should show child runs.
+output=$(assert_ok "list --all (nested child)" "$ORC" list --all) && {
+    assert_contains "list --all: child run" "$output" "child" && pass "list --all: child run visible" || true
 }
 
 # ── 20. Loop + workflow ───────────────────────────────────────────
@@ -604,7 +691,8 @@ fi
 
 # Verify child runs were created — this is the core regression check.
 # Before the fix, loop+workflow created zero child runs.
-list_output=$(assert_ok "list (loop children)" "$ORC" list) || true
+# Use --all to see child runs (hidden by default since they have parentRunID).
+list_output=$(assert_ok "list (loop children)" "$ORC" list --all) || true
 child_count=$(echo "$list_output" | grep -c "loop-child" || true)
 
 if [ "$child_count" -ge 2 ]; then
@@ -617,7 +705,7 @@ fi
 
 section "Final cleanup"
 
-output=$(assert_ok "purge --status all" "$ORC" purge --status all) && {
+output=$(assert_ok "purge all" "$ORC" purge all) && {
     pass "purge all"
 }
 

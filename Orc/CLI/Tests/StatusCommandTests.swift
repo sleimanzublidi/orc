@@ -9,6 +9,8 @@ import Testing
 @Suite("StatusCommand")
 struct StatusCommandTests {
 
+    // MARK: - Run Detail Mode (with run ID)
+
     @Test("throws ExitCode.failure when run not found")
     func throwsWhenRunNotFound() async throws {
         let mock = MockEngine()
@@ -74,7 +76,6 @@ struct StatusCommandTests {
             ]
         }
 
-        // The command should succeed and print the "orc attach" hint.
         let cmd = try StatusCommand.parseAsRoot(["run1"]) as! StatusCommand
         try await cmd.execute(engine: mock)
     }
@@ -99,8 +100,61 @@ struct StatusCommandTests {
             ]
         }
 
-        // The command should succeed and print the "orc respond" hint.
         let cmd = try StatusCommand.parseAsRoot(["run1"]) as! StatusCommand
+        try await cmd.execute(engine: mock)
+    }
+
+    // MARK: - In-Progress Mode (no run ID)
+
+    @Test("no arguments shows in-progress runs")
+    func noArgsShowsInProgress() async throws {
+        let mock = MockEngine()
+        mock.listRunsHandler = { _, _ in
+            [
+                TestFixtures.makeRun(id: "run-1", status: .running),
+                TestFixtures.makeRun(id: "run-2", status: .completed),
+                TestFixtures.makeRun(id: "run-3", status: .pending),
+            ]
+        }
+
+        let cmd = try StatusCommand.parseAsRoot([]) as! StatusCommand
+        try await cmd.execute(engine: mock)
+    }
+
+    @Test("no arguments with no in-progress runs prints message")
+    func noArgsNoInProgress() async throws {
+        let mock = MockEngine()
+        mock.listRunsHandler = { _, _ in
+            [
+                TestFixtures.makeRun(id: "run-1", status: .completed),
+                TestFixtures.makeRun(id: "run-2", status: .failed),
+            ]
+        }
+
+        let cmd = try StatusCommand.parseAsRoot([]) as! StatusCommand
+        try await cmd.execute(engine: mock)
+    }
+
+    @Test("no arguments with empty run list prints message")
+    func noArgsEmptyList() async throws {
+        let mock = MockEngine()
+        mock.listRunsHandler = { _, _ in [] }
+
+        let cmd = try StatusCommand.parseAsRoot([]) as! StatusCommand
+        try await cmd.execute(engine: mock)
+    }
+
+    @Test("no arguments includes awaiting_input runs")
+    func noArgsIncludesAwaitingInput() async throws {
+        let mock = MockEngine()
+        mock.listRunsHandler = { _, _ in
+            [
+                TestFixtures.makeRun(id: "run-1", status: .awaitingInput),
+            ]
+        }
+
+        // Should succeed and show the awaiting_input run.
+        let cmd = try StatusCommand.parseAsRoot([]) as! StatusCommand
         try await cmd.execute(engine: mock)
     }
 }

@@ -543,6 +543,14 @@ struct NodeDispatcher: Sendable {
                     error: nil
                 )
 
+                // Persist log files from temp directory to workspace logs.
+                await persistLogs(
+                    output: output,
+                    execID: execID,
+                    nodeID: node.id,
+                    workspacePath: context.workspacePath
+                )
+
                 onEvent(.nodeCompleted(nodeID: node.id, runID: run.id, output: output.output))
                 return (node.id, .completed, output.output, nil)
             } catch {
@@ -571,6 +579,43 @@ struct NodeDispatcher: Sendable {
         }
 
         return (node.id, .failed, nil, lastError)
+    }
+
+    /// Moves log files from the temp directory to the workspace logs directory
+    /// and creates database log entries so `orc logs` can find them.
+    private func persistLogs(
+        output: TaskOutput,
+        execID: String,
+        nodeID: String,
+        workspacePath: String
+    ) async {
+        let fm = FileManager.default
+        let logsDir = workspacePath.appendingPathComponent("logs")
+
+        // Ensure the logs directory exists (it should from workspace creation,
+        // but guard against edge cases like shared/nested workspaces).
+        try? fm.createDirectory(atPath: logsDir, withIntermediateDirectories: true)
+
+        for (tempPath, stream) in [
+            (output.stdoutPath, LogStream.stdout),
+            (output.stderrPath, LogStream.stderr),
+        ] {
+            guard let tempPath, fm.fileExists(atPath: tempPath) else { continue }
+
+            let destName = "\(execID)-\(stream.rawValue).log"
+            let destPath = logsDir.appending("/\(destName)")
+
+            do {
+                try fm.moveItem(atPath: tempPath, toPath: destPath)
+                try await store.createLogEntry(
+                    nodeExecutionID: execID,
+                    stream: stream,
+                    filePath: destPath
+                )
+            } catch {
+                logger.warning("[\(nodeID)] Failed to persist \(stream.rawValue) log: \(error)")
+            }
+        }
     }
 
     /// Executes an interactive node (session or prompt mode) with retry support.
@@ -929,7 +974,8 @@ struct NodeDispatcher: Sendable {
                 workflowFile: workflowFile,
                 status: .running,
                 workspacePath: childWorkspacePath,
-                inputs: childInputs
+                inputs: childInputs,
+                parentRunID: run.id
             )
             let childRun = try await store.createRun(childRunTemplate)
 
@@ -1242,7 +1288,8 @@ struct NodeDispatcher: Sendable {
             workflowFile: workflowFile,
             status: .running,
             workspacePath: childWorkspacePath,
-            inputs: childInputs
+            inputs: childInputs,
+            parentRunID: run.id
         )
 
         let childRun: Run

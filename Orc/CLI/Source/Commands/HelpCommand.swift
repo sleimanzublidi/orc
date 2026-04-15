@@ -19,6 +19,14 @@ struct HelpCommand: AsyncParsableCommand {
         }
 
         guard let entry = manifest.topics.first(where: { $0.id == topic }) else {
+            // Fall back to the subcommand's built-in help if the topic matches a command name.
+            if let subcommand = OrcCommand.configuration.subcommands
+                .first(where: { $0.configuration.commandName == topic })
+            {
+                print(subcommand.helpMessage())
+                return
+            }
+
             Format.printError("Unknown topic: \(topic)")
             print("")
             print("Available topics:")

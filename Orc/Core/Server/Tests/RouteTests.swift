@@ -16,7 +16,7 @@ private final class MockRouteEngine: OrcEngineProviding, @unchecked Sendable {
 
     var basePath: String { "/tmp" }
 
-    func listRuns(status: RunStatus?) async throws -> [Run] {
+    func listRuns(status: RunStatus?, topLevelOnly: Bool) async throws -> [Run] {
         if let status {
             return listRunsResult.filter { $0.status == status }
         }
@@ -38,6 +38,7 @@ private final class MockRouteEngine: OrcEngineProviding, @unchecked Sendable {
     func unsetConfigValue(key: String) async throws { fatalError() }
     func loadConfig() async throws -> OrcConfig { fatalError() }
     func cleanupWorkspace(runID: String) async throws { fatalError() }
+    func cleanupRuns(olderThan: Date?, status: RunStatus?) async throws -> Int { fatalError() }
     func purge(olderThan: Date?, status: RunStatus?) async throws { fatalError() }
 }
 

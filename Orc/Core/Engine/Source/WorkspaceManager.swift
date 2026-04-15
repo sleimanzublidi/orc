@@ -74,7 +74,7 @@ public struct WorkspaceManager: Sendable {
     /// - Parameter store: The workflow store to query for expired runs.
     func startupPurge(store: any WorkflowStoring) async throws {
         // Query all runs regardless of status and check each run's cleanup policy.
-        let runs = try await store.listRuns(status: nil)
+        let runs = try await store.listRuns(status: nil, topLevelOnly: false)
         let fm = FileManager.default
 
         for run in runs {

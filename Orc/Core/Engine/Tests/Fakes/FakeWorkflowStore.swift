@@ -31,6 +31,7 @@ actor FakeWorkflowStore: WorkflowStoring {
             inputs: run.inputs,
             output: run.output,
             cleanupPolicy: run.cleanupPolicy,
+            parentRunID: run.parentRunID,
             createdAt: run.createdAt,
             updatedAt: run.updatedAt
         )
@@ -56,6 +57,7 @@ actor FakeWorkflowStore: WorkflowStoring {
             inputs: old.inputs,
             output: old.output,
             cleanupPolicy: old.cleanupPolicy,
+            parentRunID: old.parentRunID,
             createdAt: old.createdAt,
             updatedAt: Date()
         )
@@ -75,6 +77,7 @@ actor FakeWorkflowStore: WorkflowStoring {
             inputs: old.inputs,
             output: old.output,
             cleanupPolicy: old.cleanupPolicy,
+            parentRunID: old.parentRunID,
             createdAt: old.createdAt,
             updatedAt: Date()
         )
@@ -94,16 +97,21 @@ actor FakeWorkflowStore: WorkflowStoring {
             inputs: old.inputs,
             output: output,
             cleanupPolicy: old.cleanupPolicy,
+            parentRunID: old.parentRunID,
             createdAt: old.createdAt,
             updatedAt: Date()
         )
     }
 
-    func listRuns(status: RunStatus?) async throws -> [Run] {
+    func listRuns(status: RunStatus?, topLevelOnly: Bool = false) async throws -> [Run] {
+        var result = runs
         if let status = status {
-            return runs.filter { $0.status == status }
+            result = result.filter { $0.status == status }
         }
-        return runs
+        if topLevelOnly {
+            result = result.filter { $0.parentRunID == nil }
+        }
+        return result
     }
 
     func deleteRuns(olderThan date: Date, status: RunStatus?) async throws {

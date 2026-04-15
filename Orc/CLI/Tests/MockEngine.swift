@@ -21,7 +21,7 @@ final class MockEngine: OrcEngineProviding, @unchecked Sendable {
 
     // MARK: - Queries
 
-    var listRunsHandler: ((RunStatus?) async throws -> [Run])?
+    var listRunsHandler: ((RunStatus?, Bool) async throws -> [Run])?
     var getStatusHandler: ((String) async throws -> Run?)?
     var getNodeExecutionsHandler: ((String, String?) async throws -> [NodeExecution])?
     var getLogsHandler: ((String, String?, Int?, Int?) async throws -> [LogEntry])?
@@ -42,6 +42,7 @@ final class MockEngine: OrcEngineProviding, @unchecked Sendable {
     // MARK: - Workspace Management
 
     var cleanupWorkspaceHandler: ((String) async throws -> Void)?
+    var cleanupRunsHandler: ((Date?, RunStatus?) async throws -> Int)?
     var purgeHandler: ((Date?, RunStatus?) async throws -> Void)?
 
     // MARK: - Protocol Conformance
@@ -90,9 +91,9 @@ final class MockEngine: OrcEngineProviding, @unchecked Sendable {
         try await handler(runID, nodeID, response)
     }
 
-    func listRuns(status: RunStatus?) async throws -> [Run] {
+    func listRuns(status: RunStatus?, topLevelOnly: Bool) async throws -> [Run] {
         guard let handler = listRunsHandler else { fatalError("listRunsHandler not set") }
-        return try await handler(status)
+        return try await handler(status, topLevelOnly)
     }
 
     func getStatus(runID: String) async throws -> Run? {
@@ -166,6 +167,13 @@ final class MockEngine: OrcEngineProviding, @unchecked Sendable {
             fatalError("cleanupWorkspaceHandler not set")
         }
         try await handler(runID)
+    }
+
+    func cleanupRuns(olderThan: Date?, status: RunStatus?) async throws -> Int {
+        guard let handler = cleanupRunsHandler else {
+            fatalError("cleanupRunsHandler not set")
+        }
+        return try await handler(olderThan, status)
     }
 
     func purge(olderThan: Date?, status: RunStatus?) async throws {

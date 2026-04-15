@@ -74,6 +74,8 @@ public struct Run: Sendable, Equatable, Codable {
     public let inputs: [String: String]?
     public let output: String?
     public let cleanupPolicy: CleanupPolicy
+    /// The run ID of the parent workflow that spawned this child run, or nil for top-level runs.
+    public let parentRunID: String?
     public let createdAt: Date
     public let updatedAt: Date
 
@@ -86,6 +88,7 @@ public struct Run: Sendable, Equatable, Codable {
         inputs: [String: String]? = nil,
         output: String? = nil,
         cleanupPolicy: CleanupPolicy = .duration(days: 30),
+        parentRunID: String? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -97,6 +100,7 @@ public struct Run: Sendable, Equatable, Codable {
         self.inputs = inputs
         self.output = output
         self.cleanupPolicy = cleanupPolicy
+        self.parentRunID = parentRunID
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }

@@ -35,7 +35,7 @@ public protocol OrcEngineProviding: Sendable {
 
     // MARK: - Queries
 
-    func listRuns(status: RunStatus?) async throws -> [Run]
+    func listRuns(status: RunStatus?, topLevelOnly: Bool) async throws -> [Run]
 
     func getStatus(runID: String) async throws -> Run?
 
@@ -72,6 +72,8 @@ public protocol OrcEngineProviding: Sendable {
     // MARK: - Workspace Management
 
     func cleanupWorkspace(runID: String) async throws
+
+    func cleanupRuns(olderThan: Date?, status: RunStatus?) async throws -> Int
 
     func purge(olderThan: Date?, status: RunStatus?) async throws
 

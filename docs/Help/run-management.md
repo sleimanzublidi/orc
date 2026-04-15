@@ -8,9 +8,12 @@ Orc persists every workflow run in a local SQLite database (`.orc/orc.db`). This
 orc list
 orc list --status completed
 orc list --status failed
+orc list --all
 ```
 
 Displays a table of runs with columns: ID, WORKFLOW, STATUS, CREATED, UPDATED.
+
+By default, only top-level runs are shown. Child runs spawned by nested workflows are hidden. Use `--all` to include them.
 
 Filter by status: `pending`, `running`, `completed`, `failed`, `cancelled`, `awaiting_input`.
 
@@ -55,26 +58,68 @@ orc cancel <runID>
 
 Cancels a running workflow. All pending and running nodes are stopped.
 
+## Checking In-Progress Runs
+
+```sh
+orc status
+```
+
+Without a run ID, shows all in-progress runs (pending, running, awaiting_input) in a table.
+
 ## Cleaning Up Workspaces
 
-Remove the workspace for a single run:
+Remove workspaces without deleting database records. Supports a run ID, status filter, date filter, or `all`:
 
 ```sh
 orc cleanup <runID>
+orc cleanup all
+orc cleanup completed
+orc cleanup '<2026-04-15'
+orc cleanup --status failed --older-than 30d
+orc cleanup completed --older-than 7d
+orc cleanup --dry-run all
 ```
 
-Purge old runs and their workspaces in bulk:
-
-```sh
-orc purge --older-than 30d
-orc purge --older-than 7d --status completed
-orc purge --status all --older-than 90d
-```
+| Positional | Description |
+|------------|-------------|
+| `<runID>` | Single run workspace |
+| `all` | All workspaces |
+| `<status>` | Filter by status |
+| `<YYYY-MM-DD` | Runs updated before that date |
 
 | Flag | Description |
 |------|-------------|
-| `--older-than <duration>` | Age threshold (e.g., `7d`, `30d`) |
-| `--status <value>` | Filter: `pending`, `running`, `completed`, `failed`, `cancelled`, `awaiting_input`, `all` |
+| `--older-than <value>` | Duration (`7d`, `30d`) or ISO date (`2026-04-15`) |
+| `--status <value>` | `pending`, `running`, `completed`, `failed`, `cancelled`, `awaiting_input`, `all` |
+| `--dry-run` | Show what would be removed without removing |
+
+## Purging Runs
+
+Delete run records from the database **and** their workspaces. Same filter syntax as `cleanup`:
+
+```sh
+orc purge
+orc purge all
+orc purge completed
+orc purge '<2026-04-15'
+orc purge --older-than 30d
+orc purge --older-than 7d --status completed
+orc purge --dry-run completed
+```
+
+With no arguments, purges all runs. Use `--dry-run` to preview what would be deleted.
+
+| Positional | Description |
+|------------|-------------|
+| `all` | All runs |
+| `<status>` | Filter by status |
+| `<YYYY-MM-DD` | Runs updated before that date |
+
+| Flag | Description |
+|------|-------------|
+| `--older-than <value>` | Duration (`7d`, `30d`) or ISO date (`2026-04-15`) |
+| `--status <value>` | `pending`, `running`, `completed`, `failed`, `cancelled`, `awaiting_input`, `all` |
+| `--dry-run` | Show what would be purged without purging |
 
 ## Project Statistics
 

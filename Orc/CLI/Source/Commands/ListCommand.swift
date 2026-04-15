@@ -5,11 +5,18 @@ import Models
 struct ListCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "list",
-        abstract: "List workflow runs"
+        abstract: "List workflow runs",
+        discussion: """
+            By default, shows only top-level runs (hides child/nested workflow runs).
+            Use --all to include child runs.
+            """
     )
 
     @Option(name: .long, help: "Filter by status (pending, running, completed, failed, cancelled, awaiting_input).")
     var status: String?
+
+    @Flag(name: .long, help: "Include child runs from nested workflows.")
+    var all = false
 
     func run() async throws {
         let basePath = try OrcDirectory.require()
@@ -31,7 +38,7 @@ struct ListCommand: AsyncParsableCommand {
                 statusFilter = nil
             }
 
-            let runs = try await engine.listRuns(status: statusFilter)
+            let runs = try await engine.listRuns(status: statusFilter, topLevelOnly: !all)
 
             if runs.isEmpty {
                 print("No runs found.")

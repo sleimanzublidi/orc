@@ -37,7 +37,7 @@ struct StatsCommand: AsyncParsableCommand {
             }
 
             // Run counts.
-            let allRuns = try await engine.listRuns(status: nil)
+            let allRuns = try await engine.listRuns(status: nil, topLevelOnly: false)
             let runsByStatus = Dictionary(grouping: allRuns, by: \.status)
             print("")
             print("Runs: \(allRuns.count) total")

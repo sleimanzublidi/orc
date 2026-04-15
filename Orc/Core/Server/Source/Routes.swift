@@ -63,7 +63,7 @@ func registerPageRoutes(on router: Router<BasicRequestContext>, engine: any OrcE
         let statusParam: String? = request.uri.queryParameters["status"].map(String.init)
         let partialParam: String? = request.uri.queryParameters["partial"].map(String.init)
         let status: RunStatus? = statusParam.flatMap { RunStatus(rawValue: $0) }
-        let runs = try await engine.listRuns(status: status)
+        let runs = try await engine.listRuns(status: status, topLevelOnly: false)
 
         if partialParam == "true" {
             return htmlResponse(TemplateRenderer.renderRunsList(runs))

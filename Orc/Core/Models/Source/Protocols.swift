@@ -54,7 +54,7 @@ public protocol WorkflowStoring: Sendable {
     func updateRunStatus(id: String, status: RunStatus) async throws
     func updateRunOutput(id: String, output: String) async throws
     func updateRunWorkspacePath(id: String, workspacePath: String) async throws
-    func listRuns(status: RunStatus?) async throws -> [Run]
+    func listRuns(status: RunStatus?, topLevelOnly: Bool) async throws -> [Run]
     func deleteRuns(olderThan: Date, status: RunStatus?) async throws
 
     // Node executions

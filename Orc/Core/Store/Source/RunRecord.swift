@@ -50,6 +50,7 @@ extension Run: FetchableRecord {
             inputs: decodedInputs,
             output: row["output"],
             cleanupPolicy: policy,
+            parentRunID: row["parent_run_id"],
             createdAt: row["created_at"],
             updatedAt: row["updated_at"]
         )
@@ -87,6 +88,7 @@ extension Run: PersistableRecord {
         }
         container["cleanup_policy"] = policyString
 
+        container["parent_run_id"] = parentRunID
         container["created_at"] = createdAt
         container["updated_at"] = updatedAt
     }

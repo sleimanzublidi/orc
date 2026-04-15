@@ -207,7 +207,7 @@ public actor WorkflowEngine {
         // considered "in-flight" if any existing run for the same file has
         // status .running, .pending, or .awaitingInput.
         for status in [RunStatus.running, .pending, .awaitingInput] {
-            let existingRuns = try await store.listRuns(status: status)
+            let existingRuns = try await store.listRuns(status: status, topLevelOnly: false)
             if let existing = existingRuns.first(where: { $0.workflowFile == canonicalPath }) {
                 throw EngineError.workflowAlreadyRunning(id: existing.id)
             }
@@ -373,7 +373,7 @@ public actor WorkflowEngine {
 
         // Prevent concurrent runs of the same workflow file.
         for status in [RunStatus.running, .pending, .awaitingInput] {
-            let existingRuns = try await store.listRuns(status: status)
+            let existingRuns = try await store.listRuns(status: status, topLevelOnly: false)
             if let existing = existingRuns.first(where: { $0.workflowFile == canonicalPath }) {
                 throw EngineError.workflowAlreadyRunning(id: existing.id)
             }
@@ -664,9 +664,9 @@ public actor WorkflowEngine {
 
     // MARK: - Query API
 
-    /// Lists all runs, optionally filtered by status.
-    public func listRuns(status: RunStatus? = nil) async throws -> [Run] {
-        try await store.listRuns(status: status)
+    /// Lists runs, optionally filtered by status and/or restricted to top-level runs.
+    public func listRuns(status: RunStatus? = nil, topLevelOnly: Bool = false) async throws -> [Run] {
+        try await store.listRuns(status: status, topLevelOnly: topLevelOnly)
     }
 
     /// Gets the current status of a run.
@@ -817,6 +817,41 @@ public actor WorkflowEngine {
         )
     }
 
+    /// Removes workspace directories for runs matching the given filters.
+    ///
+    /// Unlike `purge`, this does **not** delete database records — only the
+    /// on-disk workspace directories are removed.
+    ///
+    /// - Parameters:
+    ///   - olderThan: Only clean runs updated before this date. If nil, no date filter.
+    ///   - status: Only clean runs with this status. If nil, all statuses match.
+    /// - Returns: The number of workspaces removed.
+    @discardableResult
+    public func cleanupRuns(olderThan: Date?, status: RunStatus?) async throws -> Int {
+        let runs = try await store.listRuns(status: status, topLevelOnly: false)
+        var cleanedCount = 0
+
+        for run in runs {
+            let shouldClean: Bool
+            if let cutoff = olderThan {
+                shouldClean = run.updatedAt < cutoff
+            } else {
+                shouldClean = true
+            }
+
+            if shouldClean {
+                try? workspaceManager.cleanupWorkspace(
+                    runID: run.id,
+                    policy: .always,
+                    runStatus: run.status
+                )
+                cleanedCount += 1
+            }
+        }
+
+        return cleanedCount
+    }
+
     /// Purges runs older than the given date and/or matching a status filter.
     ///
     /// Also removes workspace directories for purged runs.
@@ -826,7 +861,7 @@ public actor WorkflowEngine {
     ///   - status: Only delete runs with this status. If nil, delete all matching.
     public func purge(olderThan: Date?, status: RunStatus?) async throws {
         // Get the runs that will be purged so we can remove their workspaces.
-        let runs = try await store.listRuns(status: status)
+        let runs = try await store.listRuns(status: status, topLevelOnly: false)
         var purgedCount = 0
 
         for run in runs {

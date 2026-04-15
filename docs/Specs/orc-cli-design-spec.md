@@ -727,13 +727,17 @@ orc resume <run-id>
     Re-parses current workflow YAML, skips completed nodes,
     re-executes failed/cancelled nodes and their downstream.
 
-orc list [--status running|completed|failed|cancelled]
-    Lists all runs with status and timestamps.
+orc list [--status running|completed|failed|cancelled] [--all]
+    Lists top-level runs with status and timestamps.
+    Child runs from nested workflows are hidden by default.
+    Use --all to include them.
 
-orc status <run-id>
-    Shows run progress: each node's state, current loop iteration.
-    For awaiting_input nodes: shows the message and how to respond.
-    For nested workflows: shows child node states.
+orc status [<run-id>]
+    With a run ID: shows run progress — each node's state, current
+    loop iteration. For awaiting_input nodes: shows the message and
+    how to respond. For nested workflows: shows child node states.
+    Without a run ID: lists all in-progress runs (pending, running,
+    awaiting_input) in a table.
 
 orc attach <run-id> <node-id>
     Attaches to a session-based interactive node's tmux session.
@@ -753,11 +757,16 @@ orc cancel <run-id>
     Cancels a running workflow. Sends SIGTERM/SIGKILL to active
     processes, destroys tmux sessions, marks pending nodes as cancelled.
 
-orc cleanup <run-id>
-    Manually removes the workspace for a completed/failed/cancelled run.
+orc cleanup <filter> [--older-than <duration|date>] [--status <status>] [--dry-run]
+    Removes workspace directories without deleting database records.
+    <filter> can be a run ID, status name, 'all', or '<YYYY-MM-DD'.
+    --older-than accepts durations (30d) or ISO dates (2026-04-15).
+    --dry-run shows what would be removed without removing.
 
-orc purge [--older-than 30d] [--status completed|failed|cancelled|all]
-    Deletes old runs, their logs, and workspace folders. Preserves stats.
+orc purge [<filter>] [--older-than <duration|date>] [--status <status>] [--dry-run]
+    Deletes run records from the database and their workspace folders.
+    Same filter syntax as cleanup. With no arguments, purges all runs.
+    Preserves stats rows. --dry-run shows what would be purged.
 
 orc stats
     Reports: DB path and size, total runs by status, active workspace

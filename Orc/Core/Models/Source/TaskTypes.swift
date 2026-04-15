@@ -35,13 +35,22 @@ public struct TaskContext: Sendable, Equatable, Codable {
 public struct TaskOutput: Sendable, Equatable, Codable {
     public let output: String
     public let exitStatus: Int
+    /// Path to the captured stdout log file (in NSTemporaryDirectory).
+    /// The engine is responsible for moving this to the workspace logs directory.
+    public let stdoutPath: String?
+    /// Path to the captured stderr log file (in NSTemporaryDirectory).
+    public let stderrPath: String?
 
     public init(
         output: String,
-        exitStatus: Int = 0
+        exitStatus: Int = 0,
+        stdoutPath: String? = nil,
+        stderrPath: String? = nil
     ) {
         self.output = output
         self.exitStatus = exitStatus
+        self.stdoutPath = stdoutPath
+        self.stderrPath = stderrPath
     }
 }
 

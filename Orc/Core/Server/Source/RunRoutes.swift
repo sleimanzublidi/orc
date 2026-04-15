@@ -6,7 +6,7 @@ func addRunRoutes(to group: RouterGroup<BasicRequestContext>, engine: any OrcEng
     group.get("runs") { request, _ -> Response in
         let statusParam: String? = request.uri.queryParameters["status"].map(String.init)
         let status: RunStatus? = statusParam.flatMap { RunStatus(rawValue: $0) }
-        let runs = try await engine.listRuns(status: status)
+        let runs = try await engine.listRuns(status: status, topLevelOnly: false)
         return try jsonResponse(runs)
     }
 

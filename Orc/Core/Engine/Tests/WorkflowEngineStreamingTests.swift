@@ -113,7 +113,7 @@ private final class SimpleStreamingMock: OrcEngineProviding, @unchecked Sendable
     func resume(runID: String) async throws -> Run { fatalError("not implemented") }
     func cancel(runID: String) async throws { fatalError("not implemented") }
     func respond(runID: String, nodeID: String, response: String) async throws { fatalError("not implemented") }
-    func listRuns(status: RunStatus?) async throws -> [Run] { [] }
+    func listRuns(status: RunStatus?, topLevelOnly: Bool) async throws -> [Run] { [] }
     func getStatus(runID: String) async throws -> Run? { nil }
     func getNodeExecutions(runID: String, nodeID: String?) async throws -> [NodeExecution] { [] }
     func getLogs(runID: String, nodeID: String?, attempt: Int?, iteration: Int?) async throws -> [LogEntry] { [] }
@@ -125,5 +125,6 @@ private final class SimpleStreamingMock: OrcEngineProviding, @unchecked Sendable
     func unsetConfigValue(key: String) async throws {}
     func loadConfig() async throws -> OrcConfig { OrcConfig() }
     func cleanupWorkspace(runID: String) async throws {}
+    func cleanupRuns(olderThan: Date?, status: RunStatus?) async throws -> Int { 0 }
     func purge(olderThan: Date?, status: RunStatus?) async throws {}
 }
