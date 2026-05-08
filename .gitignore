@@ -58,5 +58,9 @@ superpowers/
 .orc/*
 !.orc/evaluators/
 !.orc/prompts/
+!.orc/self-improve/
+.orc/self-improve/*
+!.orc/self-improve/ideas-backlog.md
+!.orc/self-improve/known-issues.md
 !.orc/workflows/
 Orc/.claude/settings.local.json
