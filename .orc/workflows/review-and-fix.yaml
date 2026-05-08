@@ -24,14 +24,14 @@ nodes:
     agent: "{{agent}}"
     prompt_file: "{{orc_root}}/prompts/code-reviewer.md"
     parameters:
-      permission_mode: dontAsk
+      permission_mode: bypassPermissions
     output: review_output
 
   - id: fixer
     agent: "{{agent}}"
     prompt_file: "{{orc_root}}/prompts/code-fixer.md"
     parameters:
-      permission_mode: dontAsk
+      permission_mode: bypassPermissions
     depends_on: [reviewer]
     when: "{{reviewer.status}} == 'completed' && {{review_output}} != 'APPROVED'"
     output: fix_result

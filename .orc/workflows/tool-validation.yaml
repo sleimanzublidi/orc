@@ -32,7 +32,7 @@ nodes:
     agent: "{{agent}}"
     depends_on: build
     parameters:
-      permission_mode: dontAsk
+      permission_mode: bypassPermissions
     prompt: |
       The build or validate step needs to be verified. Here is the output from the last run:
 

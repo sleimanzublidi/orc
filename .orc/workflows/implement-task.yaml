@@ -23,7 +23,7 @@ nodes:
     agent: "{{agent}}"
     prompt_file: "{{orc_root}}/prompts/implement-task.md"
     parameters:
-      permission_mode: dontAsk
+      permission_mode: bypassPermissions
     output: result
 
 output:
