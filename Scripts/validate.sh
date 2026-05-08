@@ -102,7 +102,7 @@ output=$(assert_ok "help (list)" "$ORC" help) && {
 }
 
 # help <topic> — test each known topic
-for topic in workflows templates loops providers custom-agents interactive-nodes nested-workflows run-management; do
+for topic in workflows templates loops providers custom-agents interactive-nodes nested-workflows run-management packaging; do
     output=$(assert_ok "help $topic" "$ORC" help "$topic") && {
         pass "help $topic"
     }

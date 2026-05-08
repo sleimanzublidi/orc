@@ -794,6 +794,18 @@ orc config <key> <value>
 orc config --unset <key>
     Removes a config value, reverts to default.
 
+orc pack <workflow> [--output PATH] [--package-version V] [--description D]
+                    [--author NAME] [--include PATH]...
+    Bundles a workflow and its referenced files into a .orc-workflow
+    archive. The packer validates the entrypoint, walks node references
+    (prompt_file: and workflow:) transitively, and zips everything with a
+    manifest.yaml at the archive root. See section 18 for the discovery
+    rules and package format.
+
+orc install <archive>.orc-workflow [--force]
+    Installs a .orc-workflow package into the current project. Aborts if
+    any target file already exists; --force replaces them.
+
 orc version
     Prints the Orc version, build info, and Swift runtime version.
 ```
@@ -825,7 +837,83 @@ Built-in workflows are bundled as resources in the Swift package. `orc init` cop
 
 ---
 
-## 18. Distribution
+## 18. Workflow Packaging
+
+A workflow rarely lives in a single file: it references prompts and may compose sub-workflows. The `pack` / `install` commands bundle a workflow plus its dependencies into a single sharable archive with extension `.orc-workflow`.
+
+### Package format
+
+A `.orc-workflow` is a zip archive with:
+
+```
+<package>.orc-workflow
+├── manifest.yaml          # metadata + file index
+└── files/                 # mirrors the project's .orc/ subtree
+    ├── workflows/...
+    └── prompts/...
+```
+
+The `files/` prefix isolates payload from future top-level entries (e.g. `LICENSE`, `README.md`) and matches a project's `.orc/` layout 1:1, so install is a straightforward copy.
+
+### Manifest schema
+
+```yaml
+name: <string>             # required — package name
+version: <string>          # required — semver-style
+description: <string>      # optional — falls back to the entrypoint workflow's description:
+author: <string>           # optional
+min_orc_version: <string>  # optional — currently informational
+entrypoint: <string>       # required — path to the primary workflow, relative to files/
+files:                     # required — every file shipped, paths relative to files/
+  - workflows/<name>.yaml
+  - prompts/<name>.md
+  ...
+```
+
+The entrypoint MUST appear in `files`. Field order is fixed in the encoder so packages are diffable across `pack` runs.
+
+### Auto-discovery rules
+
+`orc pack` walks the entrypoint's node graph and follows two kinds of references transitively:
+
+| YAML field      | Recognized prefixes              | Behavior                                                                |
+|-----------------|----------------------------------|-------------------------------------------------------------------------|
+| `prompt_file:`  | `{{orc_root}}/...`, `.orc/...`   | The referenced markdown file is added to the package.                   |
+| `workflow:`     | `{{orc_root}}/...`, `.orc/...`   | The sub-workflow is parsed, validated, and its references followed.     |
+
+Any other reference form (an absolute path, a different template variable) is rejected with `WorkflowPackager.Error.unsupportedReferencePath` so packages remain portable.
+
+The packer cannot inspect shell command bodies. Files referenced from a `command:` block (e.g. `cat {{orc_root}}/data/seed.json`) are not auto-discovered. Authors declare those explicitly via `--include <path>` (repeatable; paths are relative to `.orc/`).
+
+### Pack pipeline
+
+1. Resolve `<workflow>` argument against `.orc/workflows/` (or treat as a path).
+2. BFS the workflow graph: parse each YAML via `WorkflowEngine.validate`, refuse to pack on validation errors.
+3. Collect file paths (deduped, ordered by discovery).
+4. Stage `manifest.yaml` + `files/...` in a temp directory.
+5. Invoke `/usr/bin/zip -rq <output> .` with the staging dir as cwd.
+6. Clean up staging dir.
+
+### Install pipeline
+
+1. Extract the archive to a temp directory via `/usr/bin/unzip -q`.
+2. Decode and validate `manifest.yaml`.
+3. Reject any path in `files:` that is absolute or contains `..` (path-traversal guard).
+4. Verify every manifest entry exists in `files/` inside the archive.
+5. **Pre-flight collision check**: if any target path already exists in `.orc/` and `--force` is absent, abort listing all conflicts. The project is left untouched.
+6. Copy each file into `.orc/<path>`, recording per-file actions (`added` / `replaced`).
+7. Clean up the extraction dir.
+
+### Constraints and non-goals (current)
+
+- No checksums or signatures. Zip integrity is the only tamper detection.
+- `min_orc_version` is informational; install does not enforce it.
+- No registry or marketplace; distribution is out-of-band (HTTP, file share, etc.).
+- Single-entrypoint packages. A package always describes one primary workflow.
+
+---
+
+## 19. Distribution
 
 macOS only (arm64 and x86_64). Three channels:
 
@@ -843,8 +931,9 @@ macOS only (arm64 and x86_64). Three channels:
 
 ---
 
-## 19. Future Considerations
+## 20. Future Considerations
 
 - **Local web server** — a thin client over OrcEngine that serves a browser UI for monitoring workflows. The architecture supports this: OrcEngine is the single source of truth, SQLite uses WAL mode for concurrent access, and the engine exposes query-friendly APIs.
 - **Linux support** — not in scope for v1, but no macOS-specific APIs are used in the engine layer.
 - **Additional providers** — the `cli-agent` configuration model allows adding new AI providers without code changes. Custom Swift providers can be added by implementing the `AgentProviding` protocol.
+- **Package registry** — a marketplace where users can publish and discover `.orc-workflow` packages. Would extend the manifest with checksums, signatures, and `min_orc_version` enforcement.

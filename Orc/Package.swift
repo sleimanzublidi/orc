@@ -152,6 +152,7 @@ let package = Package(
                 "Server",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Logging", package: "swift-log"),
+                .product(name: "Yams", package: "Yams"),
             ],
             path: "CLI",
             exclude: ["Tests", "Main", "Resources"],

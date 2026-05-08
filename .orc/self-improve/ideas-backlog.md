@@ -84,3 +84,13 @@ Backlog retention rule: keep an idea only if `Value >= 3`, `Safety >= 3`, and ei
 **Description:** Add a bundled template that demonstrates dependencies, parallel nodes, conditionals, loops, and optional interactive nodes.
 **Rationale:** Templates are the practical tutorial for new users, and current starter workflows underrepresent Orc's DAG model.
 **Notes:** Keep the template small and executable; avoid adding commented examples that cannot be validated.
+
+## 8. Skill Distribution via `orc skill install`
+**Source:** product
+**Value:** 4
+**Feasibility:** 4
+**Safety:** 5
+**Status:** candidate
+**Description:** Distribute the bundled `orc-workflow` authoring skill to users of the CLI. Have `orc init` write `.claude/skills/orc-workflow/` into the project alongside the existing `.orc/` scaffolding, and add an `orc skill install [--global]` command that installs it to `.claude/skills/` (project) or `~/.claude/skills/` (user-wide). Skill files ship embedded in the binary via the existing `EmbedDefaults` build plugin.
+**Rationale:** The orc-workflow skill teaches users how to author Orc YAML workflows, but it currently only exists inside this repo. Anyone running `orc init` in a new project gets the runtime scaffolding without the authoring guidance, which is the highest-leverage moment to give it to them.
+**Notes:** Project scope (via `orc init`) is the smallest change with the biggest reach; the `--global` flag covers users who want it once across all projects. Keep Orc's provider-neutral stance honest by treating Claude Code as one target and leaving room for other harnesses (e.g., a future `--target` flag).

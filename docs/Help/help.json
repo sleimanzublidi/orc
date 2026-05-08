@@ -48,6 +48,12 @@
       "title": "Run Management",
       "description": "Listing, inspecting, resuming, cancelling, and cleaning up workflow runs.",
       "file": "run-management.md"
+    },
+    {
+      "id": "packaging",
+      "title": "Packaging Workflows",
+      "description": "Bundling a workflow and its referenced files into a .orc-workflow archive with orc pack and orc install.",
+      "file": "packaging.md"
     }
   ]
 }

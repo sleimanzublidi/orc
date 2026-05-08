@@ -224,6 +224,17 @@ orc purge --older-than 30d            # delete old runs (preserves stats)
 orc stats                             # view historical run statistics
 ```
 
+### Share workflows
+
+Bundle a workflow plus its referenced prompts and sub-workflows into a single `.orc-workflow` archive that can be installed into another project:
+
+```sh
+orc pack <workflow> --output dist/<workflow>.orc-workflow
+orc install dist/<workflow>.orc-workflow [--force]
+```
+
+`orc pack` walks `prompt_file:` and `workflow:` references automatically. Files referenced indirectly from shell commands need `--include <path>`. See `orc help packaging` for the full discovery rules and package format.
+
 ### Custom agents
 
 Any CLI tool can be used as a provider:
