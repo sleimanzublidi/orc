@@ -26,6 +26,7 @@ playground.xcworkspace
 Packages/
 Package.pins
 *.xcodeproj
+*/Package.resolved
 
 # Xcode automatically generates this directory with a .xcworkspacedata file and xcuserdata
 # hence it is not needed unless you have added a package configuration file to your project
@@ -45,7 +46,7 @@ PreBuild/debug*
 # Claude
 CLAUDE.local.md
 .claude/scheduled_tasks.lock
-.claude/skills/settings.local.json
+*settings.local.json
 
 # Worktrees
 .worktrees/
@@ -63,4 +64,6 @@ superpowers/
 !.orc/self-improve/ideas-backlog.md
 !.orc/self-improve/known-issues.md
 !.orc/workflows/
-Orc/.claude/settings.local.json
+
+# VSCode
+.vscode/launch.json
