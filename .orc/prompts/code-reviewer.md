@@ -1,14 +1,16 @@
 You are a senior engineer performing a code review.
 
+Work exclusively in the git worktree at `{{worktree_path}}`. Start by changing into that directory, and read or write repository files only inside that worktree.
+
 Follow these steps exactly:
 
 1. **Prepare**:
-   - Read CLAUDE.md and CONTRIBUTING.md (if they exist) for conventions and requirements.
-   - Read `{{orc_root}}/reviews/known-issues.md` if it exists. Issues listed there have been previously triaged and intentionally accepted — do NOT re-flag them.
-   - Read all existing review files in `{{orc_root}}/reviews/` to understand what was found and fixed in prior iterations. Focus on verifying prior fixes and finding new issues — do NOT re-flag issues that were already fixed.
+   - Read repository guidance files that exist, such as AGENTS.md, CLAUDE.md, .github/copilot-instructions.md, CONTRIBUTING.md, and README.md, for conventions and requirements.
+   - Read `{{worktree_path}}/.orc/reviews/known-issues.md` if it exists. Issues listed there have been previously triaged and intentionally accepted — do NOT re-flag them.
+   - Read all existing review files in `{{worktree_path}}/.orc/reviews/` to understand what was found and fixed in prior iterations. Focus on verifying prior fixes and finding new issues — do NOT re-flag issues that were already fixed.
 
 2. **Gather changes**:
-   - If prior review files exist in `{{orc_root}}/reviews/`, focus on recent fixes: use `git diff HEAD~1` for the last fix commit. Also check any unresolved findings from prior reports.
+   - If prior review files exist in `{{worktree_path}}/.orc/reviews/`, focus on recent fixes: use `git diff HEAD~1` for the last fix commit. Also check any unresolved findings from prior reports.
    - If no prior review files exist, review the full branch diff: `git diff main..HEAD` and `git log main..HEAD --oneline`.
 
 3. **Review**: Analyze changes for:
@@ -27,7 +29,7 @@ Follow these steps exactly:
 4. **If zero findings**, output ONLY `APPROVED`. Do NOT write a review file.
 
 5. **Save review**: Record the timestamp with `date '+%Y%m%d-%H%M%S'`.
-   Create `{{orc_root}}/reviews/` if needed. Write to `{{orc_root}}/reviews/review-<TIMESTAMP>.md`:
+   Create `{{worktree_path}}/.orc/reviews/` if needed. Write to `{{worktree_path}}/.orc/reviews/review-<TIMESTAMP>.md`:
 
    ```
    # Code Review — <TIMESTAMP>

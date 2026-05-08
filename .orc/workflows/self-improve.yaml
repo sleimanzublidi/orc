@@ -1,44 +1,76 @@
 # Self-improvement workflow — generates product and engineering ideas, debates them,
-# implements the best, validates the binary, then runs a review-fix loop, and commits.
+# starts a git worktree, implements the best task there, validates the binary,
+# runs a review-fix loop, and commits any remaining changes.
 #
 # Usage:
 #   orc start self-improve
+#   orc start self-improve --input agent="copilot"
+#   orc start self-improve --input review_iterations="5"
 name: self-improve
-description: Autonomous self-improvement cycle that generates product and engineering ideas, debates and ranks them, implements the top picks, validates the tool, runs iterative code review, and commits.
+description: Autonomous self-improvement cycle that generates product and engineering ideas, debates and ranks them, creates an isolated git worktree for the top pick, validates the tool, runs iterative code review, and commits any remaining changes.
+
+input:
+  - name: agent
+    type: string
+    default: "claude-code"
+  - name: review_iterations
+    type: string
+    default: "3"
 
 nodes:
   - id: setup
     command: |
-      BRANCH="self-improve/$(date +%Y-%m-%d)"
-      git checkout -b "$BRANCH" 2>/dev/null || git checkout "$BRANCH"
-      mkdir -p {{orc_root}}/self-improve
-      date '+%Y%m%d-%H%M%S'
+      set -eu
+      TIMESTAMP="$(date '+%Y%m%d-%H%M%S')"
+      mkdir -p {{orc_root}}/self-improve {{orc_root}}/reviews
+      printf '%s\n' "$TIMESTAMP"
     output: timestamp
 
-  - id: codebase-summary
-    agent: claude-code
+  - id: create-worktree
+    command: |
+      set -eu
+      BRANCH="self-improve/{{timestamp}}"
+      WORKTREE="$(dirname "{{repo_root}}")/Orc-self-improve-{{timestamp}}"
+      git worktree add -b "$BRANCH" "$WORKTREE" HEAD
+      mkdir -p "$WORKTREE/.orc/self-improve" "$WORKTREE/.orc/reviews"
+      cp -R "{{orc_root}}/self-improve/." "$WORKTREE/.orc/self-improve/"
+      cp -R "{{orc_root}}/reviews/." "$WORKTREE/.orc/reviews/"
+      printf '%s\n' "$WORKTREE"
     depends_on: setup
+    output: worktree_path
+
+  - id: codebase-summary
+    agent: "{{agent}}"
+    depends_on: create-worktree
     prompt_file: "{{orc_root}}/prompts/codebase-summary.md"
+    parameters:
+      permission_mode: dontAsk
     output: codebase_summary
 
   - id: product-manager
-    agent: claude-code
+    agent: "{{agent}}"
     depends_on: codebase-summary
     prompt_file: "{{orc_root}}/prompts/product-manager.md"
+    parameters:
+      permission_mode: dontAsk
     output: product_ideas_file
 
   - id: principal-engineer
-    agent: claude-code
+    agent: "{{agent}}"
     depends_on: codebase-summary
     prompt_file: "{{orc_root}}/prompts/principal-engineer.md"
+    parameters:
+      permission_mode: dontAsk
     output: engineer_ideas_file
 
   - id: adversarial-reviewer
-    agent: claude-code
+    agent: "{{agent}}"
     depends_on:
       - product-manager
       - principal-engineer
     prompt_file: "{{orc_root}}/prompts/adversarial-reviewer.md"
+    parameters:
+      permission_mode: dontAsk
     output: tasks_file
 
   - id: software-engineer
@@ -47,35 +79,47 @@ nodes:
     on_failure: continue
     inputs:
       task_file: "{{tasks_file}}"
+      worktree_path: "{{worktree_path}}"
+      agent: "{{agent}}"
 
   - id: tool-validation
     workflow: .orc/workflows/tool-validation.yaml
     depends_on: software-engineer
     when: "{{software-engineer.status}} == 'completed'"
+    inputs:
+      worktree_path: "{{worktree_path}}"
+      agent: "{{agent}}"
 
   - id: fix-loop
     workflow: .orc/workflows/fix-loop.yaml
     depends_on: tool-validation
     when: "{{tool-validation.status}} == 'completed'"
     inputs:
-      workspace: "{{workspace}}"
+      max_iterations: "{{review_iterations}}"
+      worktree_path: "{{worktree_path}}"
+      agent: "{{agent}}"
 
   - id: commit
     agent: shell
     depends_on: fix-loop
     command: |
-      git add -A && git commit -m "[Claude] Self-improve: $(date +%Y-%m-%d)
-
-      Automated self-improvement cycle — implementation validated and reviewed.
-
-      Co-Authored-By: Claude"
+      set -eu
+      git -C "{{worktree_path}}" add -A
+      if git -C "{{worktree_path}}" diff --cached --quiet; then
+        echo "No changes to commit."
+      else
+        git -C "{{worktree_path}}" commit \
+          -m "[Self-improve: {{timestamp}}]" \
+          -m "Automated self-improvement cycle — implementation validated and reviewed."
+      fi
     output: commit_result
 
 output:
   product_ideas: "{{product_ideas_file}}"
   engineer_ideas: "{{engineer_ideas_file}}"
   tasks: "{{tasks_file}}"
-  implementation: "{{software-engineer.output}}"
-  validation: "{{tool-validation.output}}"
-  review: "{{fix-loop.output}}"
-  commit: "{{commit_result}}"
+  worktree: "{{worktree_path}}"
+  implementation: "{{software-engineer.output | default: SKIPPED}}"
+  validation: "{{tool-validation.output | default: SKIPPED}}"
+  review: "{{fix-loop.output | default: SKIPPED}}"
+  commit: "{{commit_result | default: SKIPPED}}"

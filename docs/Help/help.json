@@ -21,8 +21,8 @@
     },
     {
       "id": "providers",
-      "title": "Built-in Providers",
-      "description": "claude-code and shell providers, configuration options, and execution behavior.",
+      "title": "Providers",
+      "description": "Built-in providers, custom CLI agents such as Copilot/Codex, configuration options, and execution behavior.",
       "file": "providers.md"
     },
     {

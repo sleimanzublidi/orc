@@ -2,12 +2,16 @@
 #
 # Usage:
 #   orc start review-file --file README.md
+#   orc start review-file --input agent="copilot" --file README.md
 #   orc start review-file --file README.md What are the key features?
 #   orc start review-file --file spec.md --input question="Is this complete?"
 name: review-file
 description: Reviews a file and answers a question about it.
 
 input:
+  - name: agent
+    type: string
+    default: "claude-code"
   - name: spec_file
     type: file
     required: true
@@ -17,7 +21,7 @@ input:
 
 nodes:
   - id: review
-    agent: claude-code
+    agent: "{{agent}}"
     prompt: "Do not explore files beyond what is specified. Read {{spec_file}} and answer: {{question | default: Summarize this file.}}"
     output: answer
 

@@ -74,7 +74,7 @@ Key capabilities:
 * **Conditional branching** — `when:` guards enable branching paths that converge downstream
 * **Interactive nodes** — two modes: `session` (tmux-based terminal sessions) and `prompt` (pause for user input)
 * **Nested workflows** — compose workflows by referencing child workflow files, with shared or isolated workspaces
-* **Pluggable agents** — built-in `claude-code` and `shell` providers, plus custom CLI agents via configuration
+* **Pluggable agents** — built-in `claude-code` and `shell` providers, plus custom CLI agents such as Copilot, Codex, or project-specific tools via configuration
 * **SQLite persistence** — all run state, node executions, and stats stored locally with WAL mode for concurrent access
 * **Resume from failure** — restart failed runs from the point of failure, skipping completed nodes
 * **Workspace management** — per-run workspaces with configurable cleanup policies
@@ -163,6 +163,9 @@ Creates a `.orc/` directory with config, SQLite database (WAL mode), evaluator d
 name: "implement-feature"
 description: "Plan and implement a feature"
 input:
+  - name: agent
+    type: string
+    default: "claude-code"
   - name: repo_path
     type: string
     required: true
@@ -172,12 +175,12 @@ input:
 
 nodes:
   - id: plan
-    agent: claude-code
+    agent: "{{agent}}"
     prompt: "Explore {{repo_path}} and create a plan for: {{feature_description}}"
     output: plan_file
 
   - id: implement
-    agent: claude-code
+    agent: "{{agent}}"
     depends_on: [plan]
     loop:
       prompt: "Read {{plan_file}}. Implement the next incomplete task. Run validation."
@@ -186,7 +189,7 @@ nodes:
       fresh_context: true
 
   - id: review
-    agent: claude-code
+    agent: "{{agent}}"
     depends_on: [implement]
     interactive: session
     prompt: "Present the changes in {{repo_path}} for review."
@@ -228,6 +231,9 @@ Any CLI tool can be used as a provider:
 ```yaml
 # .orc/config.yml
 providers:
+  copilot:
+    type: cli-agent
+    command: "copilot '{{prompt}}'"
   codex:
     type: cli-agent
     command: "codex -q '{{prompt}}'"
@@ -238,7 +244,7 @@ providers:
     interactive_command: "aider"
 ```
 
-Reference in workflows with `agent: codex` or `agent: aider`.
+Reference in workflows with `agent: copilot`, `agent: codex`, or `agent: aider`. For portable workflows, expose an `agent` input and use `agent: "{{agent}}"`.
 
 ### Error handling
 

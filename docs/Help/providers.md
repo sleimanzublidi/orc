@@ -1,6 +1,26 @@
-# Built-in Providers
+# Providers
 
 Orc ships with two built-in providers: `claude-code` and `shell`. Each node's `agent` field selects which provider executes it.
+
+Custom CLI agents can add providers such as `copilot`, `codex`, or project-specific tools. To keep workflows portable across agents, declare an input and template the `agent` field:
+
+```yaml
+input:
+  - name: agent
+    type: string
+    default: "claude-code"
+
+nodes:
+  - id: implement
+    agent: "{{agent}}"
+    prompt_file: "{{orc_root}}/prompts/implement-task.md"
+```
+
+Then run with any configured provider:
+
+```sh
+orc start implement-task --input agent="copilot"
+```
 
 ## claude-code
 
@@ -76,6 +96,8 @@ Use the `command` field instead of `prompt` for shell nodes. Template variables 
 **How it works:** Passes the command to the configured shell via its `-c` flag. Default shell is `/bin/zsh` on macOS and `/bin/sh` on Linux.
 
 Shell nodes do not use any `parameters:` keys. Any keys in the `parameters:` block are ignored.
+
+Generic `cli-agent` providers also ignore unknown `parameters:` keys. Put custom CLI flags in the provider's configured `command` instead.
 
 ### Configuration
 

@@ -12,6 +12,10 @@ A workflow file declares metadata, typed inputs, a list of nodes, and an output 
 name: "implement-feature"
 description: "Plan and implement a feature"
 input:
+  - name: agent
+    type: string
+    required: true
+    default: "claude-code"
   - name: repo_path
     type: string
     required: true
@@ -25,12 +29,12 @@ input:
 
 nodes:
   - id: plan
-    agent: claude-code
+    agent: "{{agent}}"
     prompt: "Explore {{repo_path}} and create a plan for: {{feature_description}}"
     output: plan_file              # alias: {{plan_file}} = {{plan.output}}
 
   - id: implement
-    agent: claude-code
+    agent: "{{agent}}"
     depends_on: [plan]
     loop:
       prompt: "Read {{plan_file}}. Implement the next incomplete task. Run validation."
@@ -48,7 +52,7 @@ nodes:
     message: "Provide the hero image file for the landing page"
 
   - id: review
-    agent: claude-code
+    agent: "{{agent}}"
     depends_on: [lint]
     interactive: session
     prompt: "Present the changes in {{repo_path}} for review. Address any feedback."
@@ -89,7 +93,8 @@ output:
 ### Key concepts
 
 - **`{{variable}}`** — template syntax for referencing inputs, upstream outputs (`{{node_id.output}}`), and built-in variables (`{{workspace}}`). Additionally, `{{node_id.status}}` is available to check whether an upstream node completed, failed, or was skipped. Use `\{{` to produce a literal `{{` in prompts (for Jinja, Mustache, Go templates, etc.).
-- **`agent`** — selects the provider: `claude-code`, `shell`, or any custom CLI agent defined in config. Required for non-interactive and session-interactive nodes. Not required for prompt-interactive nodes.
+- **`agent`** — selects the provider: `claude-code`, `shell`, or any custom CLI agent defined in config. Required for non-interactive and session-interactive nodes. Not required for prompt-interactive nodes. Accepts `{{template}}` strings, which enables provider-neutral workflows such as `agent: "{{agent}}"`.
+- **`prompt_file`** — optional path to a markdown/text prompt file. The file contents are loaded and used as the node prompt. Mutually exclusive with `prompt`. The path accepts `{{template}}` strings.
 - **`depends_on`** — list of node IDs that must resolve before this node runs (a dependency resolves when it completes or fails with `on_failure: continue`). Nodes with no unmet dependencies run concurrently. A node with no `depends_on` fires immediately at workflow start (e.g., `get-image` above collects user input in parallel with other work).
 - **`output`** — optional alias for the node's output. `output: plan_file` means `{{plan_file}}` is equivalent to `{{plan.output}}`. If omitted, the output is only accessible via `{{node_id.output}}`.
 - **`when`** — conditional guard expression. The node only executes if the expression evaluates to true. If false, the node is skipped (see §3 for expression syntax and skip behavior).
@@ -114,7 +119,7 @@ Each entry in `input:` has these fields:
 
 ### Resolvable node fields
 
-Several node configuration fields accept either a literal value or a `{{template}}` string that is resolved at execution time against the current context (inputs + upstream outputs). These fields are: `agent`, `timeout_seconds`, `on_failure`, `workspace`, values inside `parameters`, `retry.max_attempts`, `retry.delay_seconds`, `loop.max_iterations`, and `loop.fresh_context`. For example:
+Several node configuration fields accept either a literal value or a `{{template}}` string that is resolved at execution time against the current context (inputs + upstream outputs). These fields are: `agent`, `prompt_file`, `timeout_seconds`, `on_failure`, `workspace`, values inside `parameters`, `retry.max_attempts`, `retry.delay_seconds`, `loop.max_iterations`, and `loop.fresh_context`. For example:
 
 ```yaml
 - id: deploy
@@ -294,7 +299,7 @@ Evaluators are defined in YAML files:
 # .orc/evaluators/all-tasks-complete.yml
 name: all_tasks_complete
 type: ai
-agent: claude-code
+agent: claude-code  # or any configured AI provider, such as copilot
 prompt: "Given this output:\n{{last_output}}\n\nReview the plan and implementation. Are all tasks complete? Answer only YES or NO."
 output: boolean
 ```
@@ -495,6 +500,9 @@ providers:
   claude-code:
     path: /usr/local/bin/claude
     default_model: opus
+  copilot:
+    type: cli-agent
+    command: "copilot '{{prompt}}'"
   codex:
     type: cli-agent
     command: "codex -q '{{prompt}}'"

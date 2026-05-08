@@ -1,6 +1,6 @@
 # Template Variables
 
-Orc uses `{{variable}}` syntax for dynamic values in prompts, commands, `when` expressions, nested workflow inputs, and output mappings.
+Orc uses `{{variable}}` syntax for dynamic values in prompts, prompt file paths, commands, `when` expressions, nested workflow inputs, and output mappings.
 
 ## Syntax
 
@@ -58,6 +58,7 @@ prompt: |
 ## Where Templates Are Resolved
 
 - Node `prompt`
+- Node `prompt_file`
 - Node `command`
 - Node `when` expressions
 - Nested workflow `inputs` values
@@ -68,7 +69,7 @@ prompt: |
 ```yaml
 nodes:
   - id: analyze
-    agent: claude-code
+    agent: "{{agent | default: claude-code}}"
     prompt: "Analyze {{file_path}}"
     output: analysis
 

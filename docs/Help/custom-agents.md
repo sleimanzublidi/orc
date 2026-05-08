@@ -41,6 +41,17 @@ nodes:
 
 ## Examples
 
+### Copilot
+
+```yaml
+providers:
+  copilot:
+    type: cli-agent
+    command: "copilot '{{prompt}}'"
+```
+
+Adjust the command template to match the Copilot CLI entry point available in your environment. Workflows can then use `agent: copilot` or expose an `agent` input with `agent: "{{agent}}"`.
+
 ### Codex
 
 ```yaml

@@ -8,7 +8,7 @@ Creates a tmux session that you can attach to. The workflow resumes when the ses
 
 ```yaml
 - id: review
-  agent: claude-code
+  agent: "{{agent | default: claude-code}}"
   interactive: session
   prompt: "Review the changes in this repository"
 ```
@@ -73,7 +73,7 @@ Session mode works with loops. Each iteration creates a new tmux session (`orc-<
 
 ```yaml
 - id: iterate
-  agent: claude-code
+  agent: "{{agent | default: claude-code}}"
   interactive: session
   prompt: "Fix the failing tests"
   loop:

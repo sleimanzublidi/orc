@@ -1,0 +1,25 @@
+# A simple workflow to verify an AI agent provider setup.
+#
+# Usage:
+#   orc start ask-agent
+#   orc start ask-agent --input agent="copilot"
+#   orc start ask-agent --input question="What is Orc?"
+name: ask-agent
+description: Asks a configured AI agent provider a question to verify the provider is working.
+
+input:
+  - name: agent
+    type: string
+    default: "claude-code"
+  - name: question
+    type: string
+    required: false
+
+nodes:
+  - id: ask
+    agent: "{{agent}}"
+    prompt: "Do not read or explore any files. Just answer this question: {{question | default: What is Orc? Answer in one sentence.}}"
+    output: answer
+
+output:
+  response: "{{answer}}"

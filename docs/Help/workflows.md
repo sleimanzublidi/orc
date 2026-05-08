@@ -61,7 +61,7 @@ orc start review --file ./src/main.swift
 A single trailing argument is assigned to the first `type: string` input:
 
 ```sh
-orc start ask-claude "What is the meaning of life?"
+orc start ask-agent "What is the meaning of life?"
 ```
 
 ### Node Fields
@@ -71,6 +71,7 @@ orc start ask-claude "What is the meaning of life?"
 | `id` | string | -- | Unique identifier within the workflow |
 | `agent` | string | -- | Provider: `claude-code`, `shell`, or a custom agent name |
 | `prompt` | string | -- | Template string sent to the agent |
+| `prompt_file` | string | -- | Path to a markdown/text prompt file whose contents are sent to the agent |
 | `command` | string | -- | Shell command (for `shell` agent; supports templates) |
 | `depends_on` | string or list | `[]` | Node IDs that must complete first |
 | `output` | string | -- | Alias name, making this node's output available as `{{alias}}` |
@@ -85,6 +86,33 @@ orc start ask-claude "What is the meaning of life?"
 | `inputs` | map | -- | Input mapping for nested workflows |
 | `workspace` | string | `"shared"` | Nested workflow workspace mode: `shared` or `isolated` |
 | `parameters` | map | `{}` | Provider-specific key-value pairs (see [Providers](providers.md)) |
+
+`prompt` and `prompt_file` are mutually exclusive. Use `prompt_file` for longer reusable prompts, commonly stored in `.orc/prompts/`.
+
+### Provider-Neutral Agent Inputs
+
+Workflows can make the AI provider configurable by declaring an `agent` input and templating the node's `agent` field:
+
+```yaml
+input:
+  - name: agent
+    type: string
+    default: "claude-code"
+
+nodes:
+  - id: analyze
+    agent: "{{agent}}"
+    prompt: "Analyze this repository and summarize the main risks."
+```
+
+Run the same workflow with any configured provider:
+
+```sh
+orc start analyze --input agent="copilot"
+orc start analyze --input agent="codex"
+```
+
+This pattern is useful for workflows intended to run with Copilot, Claude Code, Codex, or another custom CLI agent.
 
 ### Dependencies and Parallelization
 

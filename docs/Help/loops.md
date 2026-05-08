@@ -6,7 +6,7 @@ Loops let a node repeat until an evaluator condition is satisfied or a maximum i
 
 ```yaml
 - id: review
-  agent: claude-code
+  agent: "{{agent | default: claude-code}}"
   prompt: "Review the code and fix any issues."
   output: review_result
   loop:
@@ -44,7 +44,7 @@ Place evaluator definitions in `.orc/evaluators/`:
 # .orc/evaluators/all-tasks-complete.yml
 name: all_tasks_complete
 type: ai
-agent: claude-code
+agent: claude-code  # or any configured AI provider, such as copilot
 prompt: |
   Given this output:
   {{last_output}}
@@ -84,7 +84,7 @@ Script evaluators also receive the last output via the `ORC_LAST_OUTPUT` environ
 ```yaml
 nodes:
   - id: review
-    agent: claude-code
+    agent: "{{agent | default: claude-code}}"
     prompt: |
       Review the code for bugs and style issues.
       Output APPROVED if everything looks good, or NEEDS_WORK with details.
@@ -98,7 +98,7 @@ nodes:
         Output APPROVED if clean, or NEEDS_WORK with remaining issues.
 
   - id: fix
-    agent: claude-code
+    agent: "{{agent | default: claude-code}}"
     depends_on: review
     when: "{{review_result}} != 'APPROVED'"
     prompt: "Fix the issues found: {{review_result}}"
