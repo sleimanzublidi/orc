@@ -31,7 +31,8 @@ struct InitCommand: AsyncParsableCommand {
                     throw ExitCode.failure
                 }
                 let actions = try DefaultsWriter.write(to: orcDir, force: force)
-                if actions.isEmpty {
+                let gitignoreUpdated = try GitignoreUpdater.ensureOrcRules(in: cwd)
+                if actions.isEmpty && !gitignoreUpdated {
                     print("All defaults are up to date.")
                 } else {
                     for action in actions {
@@ -42,11 +43,16 @@ struct InitCommand: AsyncParsableCommand {
                             print("  replaced: \(path)")
                         }
                     }
-                    print("\(actions.count) file(s) updated.")
+                    if gitignoreUpdated {
+                        print("  updated: .gitignore")
+                    }
+                    let updateCount = actions.count + (gitignoreUpdated ? 1 : 0)
+                    print("\(updateCount) file(s) updated.")
                 }
             } else {
                 try await WorkflowEngine.initializeProject(at: cwd)
                 _ = try DefaultsWriter.write(to: orcDir, force: true)
+                _ = try GitignoreUpdater.ensureOrcRules(in: cwd)
                 print("Initialized Orc project at \(orcDir)")
                 print("  config.yml  - project configuration")
                 print("  orc.db      - run database")
