@@ -6,6 +6,7 @@
 #   orc start tool-validation
 #   orc start tool-validation --input agent="copilot"
 #   orc start tool-validation --input worktree_path="/path/to/worktree"
+#   orc start tool-validation --input validation_report="/path/to/report.md"
 name: tool-validation
 description: Build and validate the orc binary via smoke tests. Loops fix attempts until validation passes.
 
@@ -16,6 +17,9 @@ input:
   - name: worktree_path
     type: string
     default: "{{repo_root}}"
+  - name: validation_report
+    type: string
+    default: "{{repo_root}}/.orc/self-improve/validation.md"
 
 nodes:
   - id: build
@@ -49,5 +53,47 @@ nodes:
       until: approved
       max_iterations: 5
 
+  - id: validation-summary
+    agent: shell
+    depends_on: validate-fix
+    command: |
+      set -eu
+      mkdir -p "$(dirname "{{validation_report}}")"
+      BUILD_LOG="$(mktemp)"
+      VALIDATE_LOG="$(mktemp)"
+      BUILD_STATUS="FAIL"
+      VALIDATE_STATUS="FAIL"
+      cd "{{worktree_path}}"
+      if bash Scripts/build.sh >"$BUILD_LOG" 2>&1; then
+        BUILD_STATUS="PASS"
+      fi
+      if [ "$BUILD_STATUS" = "PASS" ] && bash Scripts/validate.sh >"$VALIDATE_LOG" 2>&1; then
+        VALIDATE_STATUS="PASS"
+      fi
+      {
+        echo "# Validation Summary"
+        echo
+        echo "**Generated:** $(date '+%Y-%m-%d %H:%M:%S %z')"
+        echo "**Worktree:** {{worktree_path}}"
+        echo "**Build:** $BUILD_STATUS"
+        echo "**Smoke validation:** $VALIDATE_STATUS"
+        echo
+        echo "## Build Output"
+        echo '```'
+        cat "$BUILD_LOG"
+        echo '```'
+        echo
+        echo "## Validate Output"
+        echo '```'
+        cat "$VALIDATE_LOG"
+        echo '```'
+      } > "{{validation_report}}"
+      rm -f "$BUILD_LOG" "$VALIDATE_LOG"
+      if [ "$BUILD_STATUS" != "PASS" ] || [ "$VALIDATE_STATUS" != "PASS" ]; then
+        exit 1
+      fi
+      echo "{{validation_report}}"
+    output: validation_summary
+
 output:
-  result: "{{fix_result}}"
+  result: "{{validation_summary}}"

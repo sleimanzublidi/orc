@@ -12,6 +12,9 @@ input:
   - name: review_file
     type: string
     default: ""
+  - name: review_dir
+    type: string
+    default: "{{repo_root}}/.orc/reviews"
   - name: worktree_path
     type: string
     default: "{{repo_root}}"

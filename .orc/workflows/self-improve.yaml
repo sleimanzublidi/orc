@@ -1,13 +1,13 @@
 # Self-improvement workflow — generates product and engineering ideas, debates them,
-# starts a git worktree, implements the best task there, validates the binary,
-# runs a review-fix loop, and commits any remaining changes.
+# starts a git worktree, implements the best qualifying task there, validates
+# the binary, runs a review-fix loop, and commits any remaining changes.
 #
 # Usage:
 #   orc start self-improve
 #   orc start self-improve --input agent="copilot"
 #   orc start self-improve --input review_iterations="5"
 name: self-improve
-description: Autonomous self-improvement cycle that generates product and engineering ideas, debates and ranks them, creates an isolated git worktree for the top pick, validates the tool, runs iterative code review, and commits any remaining changes.
+description: Autonomous self-improvement cycle that generates product and engineering ideas, debates and ranks them, creates an isolated git worktree for the top qualifying pick, validates the tool, runs iterative code review, and commits any remaining changes.
 
 input:
   - name: agent
@@ -22,7 +22,25 @@ nodes:
     command: |
       set -eu
       TIMESTAMP="$(date '+%Y%m%d-%H%M%S')"
-      mkdir -p {{orc_root}}/self-improve {{orc_root}}/reviews
+      mkdir -p {{orc_root}}/self-improve
+      if [ ! -f "{{orc_root}}/self-improve/ideas-backlog.md" ]; then
+        cat > "{{orc_root}}/self-improve/ideas-backlog.md" <<'EOF'
+      # Ideas Backlog
+
+      Ideas are ranked by the self-improve reviewer. Selected or completed ideas are removed; unresolved high-value ideas stay eligible for future runs.
+
+      ## Scoring Guide
+
+      Each idea is scored from 1 to 5 on:
+      - **Value:** user-facing product impact or ability to unblock high-value user-facing work.
+      - **Feasibility:** confidence that the self-improve workflow can implement and validate the idea autonomously in one run.
+      - **Safety:** likelihood the change can be made without regressions.
+
+      The composite score is `Value x Feasibility x Safety`, with a maximum of 125.
+
+      Backlog retention rule: keep an idea only if `Value >= 3`, `Safety >= 3`, and either `Feasibility >= 3` or the idea is explicitly marked as strategic/unblocking in its notes. Remove low-value, unsafe, speculative, obsolete, duplicate, or already-implemented ideas.
+      EOF
+      fi
       printf '%s\n' "$TIMESTAMP"
     output: timestamp
 
@@ -32,9 +50,8 @@ nodes:
       BRANCH="self-improve/{{timestamp}}"
       WORKTREE="$(dirname "{{repo_root}}")/Orc-self-improve-{{timestamp}}"
       git worktree add -b "$BRANCH" "$WORKTREE" HEAD
-      mkdir -p "$WORKTREE/.orc/self-improve" "$WORKTREE/.orc/reviews"
+      mkdir -p "$WORKTREE/.orc/self-improve"
       cp -R "{{orc_root}}/self-improve/." "$WORKTREE/.orc/self-improve/"
-      cp -R "{{orc_root}}/reviews/." "$WORKTREE/.orc/reviews/"
       printf '%s\n' "$WORKTREE"
     depends_on: setup
     output: worktree_path
@@ -75,7 +92,8 @@ nodes:
 
   - id: software-engineer
     workflow: .orc/workflows/implement-task.yaml
-    depends_on: adversarial-reviewer
+    depends_on: task-decision
+    when: "{{task_decision}} == 'IMPLEMENT'"
     on_failure: continue
     inputs:
       task_file: "{{tasks_file}}"
@@ -89,6 +107,7 @@ nodes:
     inputs:
       worktree_path: "{{worktree_path}}"
       agent: "{{agent}}"
+      validation_report: "{{worktree_path}}/.orc/self-improve/{{timestamp}}-validation.md"
 
   - id: fix-loop
     workflow: .orc/workflows/fix-loop.yaml
@@ -97,27 +116,48 @@ nodes:
     inputs:
       max_iterations: "{{review_iterations}}"
       worktree_path: "{{worktree_path}}"
+      review_dir: "{{worktree_path}}/.orc/self-improve"
       agent: "{{agent}}"
 
   - id: commit
     agent: shell
-    depends_on: fix-loop
+    depends_on:
+      - task-decision
+      - fix-loop
+    when: "{{task_decision}} == 'NOOP' || {{fix-loop.status}} == 'completed'"
     command: |
       set -eu
       git -C "{{worktree_path}}" add -A
       if git -C "{{worktree_path}}" diff --cached --quiet; then
         echo "No changes to commit."
       else
+        if [ "{{task_decision}}" = "NOOP" ]; then
+          BODY="Automated self-improvement cycle — no implementation task cleared the selection bar."
+        else
+          BODY="Automated self-improvement cycle — implementation validated and reviewed."
+        fi
         git -C "{{worktree_path}}" commit \
           -m "[Self-improve: {{timestamp}}]" \
-          -m "Automated self-improvement cycle — implementation validated and reviewed."
+          -m "$BODY"
       fi
     output: commit_result
+
+  - id: task-decision
+    agent: shell
+    depends_on: adversarial-reviewer
+    command: |
+      if grep -Eq '^\*\*Decision:\*\* NOOP[[:space:]]*$' "{{tasks_file}}"; then
+        printf 'NOOP'
+      else
+        printf 'IMPLEMENT'
+      fi
+    output: task_decision
 
 output:
   product_ideas: "{{product_ideas_file}}"
   engineer_ideas: "{{engineer_ideas_file}}"
   tasks: "{{tasks_file}}"
+  decision: "{{task_decision}}"
   worktree: "{{worktree_path}}"
   implementation: "{{software-engineer.output | default: SKIPPED}}"
   validation: "{{tool-validation.output | default: SKIPPED}}"

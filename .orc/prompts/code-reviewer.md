@@ -6,12 +6,15 @@ Follow these steps exactly:
 
 1. **Prepare**:
    - Read repository guidance files that exist, such as AGENTS.md, CLAUDE.md, .github/copilot-instructions.md, CONTRIBUTING.md, and README.md, for conventions and requirements.
-   - Read `{{worktree_path}}/.orc/reviews/known-issues.md` if it exists. Issues listed there have been previously triaged and intentionally accepted — do NOT re-flag them.
-   - Read all existing review files in `{{worktree_path}}/.orc/reviews/` to understand what was found and fixed in prior iterations. Focus on verifying prior fixes and finding new issues — do NOT re-flag issues that were already fixed.
+   - Use `{{review_dir}}` as the review artifact directory.
+   - Read the latest `*-validation.md` file in `{{review_dir}}` if one exists. Use it to understand what build/test/smoke checks passed before review.
+   - Read `{{review_dir}}/known-issues.md` if it exists. Issues listed there have been previously triaged and intentionally accepted — do NOT re-flag them.
+   - Read all existing review files in `{{review_dir}}` to understand what was found and fixed in prior iterations. Focus on verifying prior fixes and finding new issues — do NOT re-flag issues that were already fixed.
 
 2. **Gather changes**:
-   - If prior review files exist in `{{worktree_path}}/.orc/reviews/`, focus on recent fixes: use `git diff HEAD~1` for the last fix commit. Also check any unresolved findings from prior reports.
-   - If no prior review files exist, review the full branch diff: `git diff main..HEAD` and `git log main..HEAD --oneline`.
+   - Review the full branch and worktree context with `git log main..HEAD --oneline`, `git diff main..HEAD`, `git diff`, and `git diff --cached`.
+   - The self-improve workflow leaves implementation and fix changes uncommitted until the final aggregate commit, so uncommitted diffs are expected and must be reviewed.
+   - If prior review files exist in `{{review_dir}}`, verify any previously unresolved findings against the current full branch/worktree diff.
 
 3. **Review**: Analyze changes for:
    - Correctness — logic bugs, off-by-one, nil/null safety, concurrency issues
@@ -29,10 +32,10 @@ Follow these steps exactly:
 4. **If zero findings**, output ONLY `APPROVED`. Do NOT write a review file.
 
 5. **Save review**: Record the timestamp with `date '+%Y%m%d-%H%M%S'`.
-   Create `{{worktree_path}}/.orc/reviews/` if needed. Write to `{{worktree_path}}/.orc/reviews/review-<TIMESTAMP>.md`:
+   Create `{{review_dir}}` if needed. Write to `{{review_dir}}/<TIMESTAMP>-review.md`:
 
    ```
-   # Code Review — <TIMESTAMP>
+   # <TIMESTAMP> — Code Review
    **Branch:** (name) | **Timestamp:** (date/time)
 
    ## Findings
